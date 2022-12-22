@@ -21,7 +21,7 @@ def train_one_epoch(model,optimizer,criterion,train_loader,epoch,device,num_epoc
     model.train()
     total_losses = AverageMeter()
     with tqdm(total=len(train_loader)) as _tqdm:
-        _tqdm.set_description('train epoch: {}/{}'.format(epoch,num_epochs))
+        _tqdm.set_description('train epoch: {}/{}'.format(epoch + 1, num_epochs))
         for data in train_loader:
             inputs, labels = data
             labels = labels.to(device)

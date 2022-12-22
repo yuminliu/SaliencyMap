@@ -44,7 +44,6 @@ def myinference(hyparas,paras,test_loader,folder='test'):
 
     mse,nsamples = 0,0
     preds,ys = [],[]
-    #i,intermediate_outputs = 0,None
     for inputs,y in test_loader:
         #inputs # [batch,channel,height,width]
         # y [batch,]
@@ -64,14 +63,6 @@ def myinference(hyparas,paras,test_loader,folder='test'):
         
         preds.append(pred)
         ys.append(y)
-
-    #     intermediate_outputs = model.intermediate_outputs
-    #     intermediate_outputs['inputs'] = inputs.float().cpu().numpy()
-    #     intermediate_outputs['pred'] = pred
-    #     np.save(savepath+'intermediate_outputs_{}.npy'.format(i),intermediate_outputs)
-    #     i += 1
-    # for layer,output in intermediate_outputs.items():
-    #     print('layer {} output.shape={}'.format(layer,output.shape))
 
     preds = np.stack(preds,axis=0) #[Ntest,], unit: mm/day
     ys = np.stack(ys,axis=0) #[Ntest,]
@@ -143,6 +134,7 @@ def myinference(hyparas,paras,test_loader,folder='test'):
         plt.ylabel(ylabel)
         if savepath:
             plt.savefig(savepath+'{}_diff_y_pred_{}.png'.format(save_name_prefix,folder),dpi=1200,bbox_inches='tight')
+
 
     return mae,mse,rmse
 

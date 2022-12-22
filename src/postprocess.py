@@ -7,170 +7,265 @@ Created on Fri Jan 17 14:52:52 2020
 """
 
 
-
-
-
-
-#%% compare persistence prediction with CNN prediction
-import numpy as np
-import pandas as pd
-from scipy import stats
-import matplotlib.pyplot as plt
-
-predictand = 'Congo' # 'Amazon' # 
-rootpath = '../results/Regression_saved/'
-#folderpath = rootpath+'GCM_Mean_Nino34_Amazon/'
-if predictand=='Amazon':
-    y_pred_gcm = np.load('../results/myCNN/lag_0/Amazon/2021-06-14_21.59.38.060129_GCM_masked_Amazon_region1/GCM_Amazon_pred_results_RMSE0.26488437282175314_test.npz')['preds']
-    y_pred_reanalysis = np.load('../results/myCNN/lag_0/Amazon/2021-06-15_00.23.44.969560_Reanalysis_masked_Amazon_region1/Reanalysis_Amazon_pred_results_RMSE0.31252981619007986_test.npz')['preds']
-    gt = np.load('../results/Regression_saved/GCM_Mean_Nino34_Amazon/y_gt.npz',allow_pickle=True)
-elif predictand=='Congo':
-    y_pred_gcm = np.load('../results/myCNN/lag_0/Congo/2021-06-15_00.42.20.427649_GCM_masked_Congo_region1/GCM_Congo_pred_results_RMSE0.5976172958058634_test.npz')['preds']
-    y_pred_reanalysis = np.load('../results/myCNN/lag_0/Congo/2021-06-14_23.51.47.085179_Reanalysis_masked_Congo_region1/Reanalysis_Congo_pred_results_RMSE0.4853571058879003_test.npz')['preds']
-    gt = np.load('../results/Regression_saved/GCM_Mean_Nino34_Congo/y_gt.npz',allow_pickle=True)
-y_persist = np.load('../results/Regression/Persistence/{}_y_persist_y_persist_std.npz'.format(predictand),allow_pickle=True)['y_persist']
-
-y_gt_test = gt['y'][-gt['Ntest']:]
-year_months = np.load('../data/Climate/year_months_195001-200512.npy')[-36:]
-interval = 4
-fig = plt.figure()
-plt.plot(y_pred_gcm)
-plt.plot(y_pred_reanalysis)
-plt.plot(y_persist)
-plt.plot(y_gt_test)
-plt.xlabel('Months')
-plt.ylabel('Stadardized River Flow')
-plt.xticks(ticks=range(0,len(y_gt_test),interval), labels=year_months[::interval])
-bottom, top = plt.ylim()  # return the current ylim
-plt.ylim(bottom,top+0.8)
-plt.xlabel('Months')
-plt.ylabel('Stadardized River Flow')
-plt.legend(loc='upper center',ncol=4)
-plt.show()
-
-## corrleation
-correlation = {}
-correlation['Persistence'] = stats.pearsonr(y_gt_test,y_persist)[0]
-correlation['GCM'] = stats.pearsonr(y_gt_test,y_pred_gcm)[0]
-correlation['Reanalysis'] = stats.pearsonr(y_gt_test,y_pred_reanalysis)[0]
-print('correlation={}'.format(correlation))
-#### seasonal rmse
-def cal_seasonal_rmse(y_gt,y_pred):
-    error = (y_pred-y_gt)**2
-    spring = np.sqrt(np.mean(np.array(error[[0,1,11,12,13,23,24,25,35]])))
-    summer = np.sqrt(np.mean(np.array(error[[2,3,4,14,15,16,26,27,28]])))
-    autumn = np.sqrt(np.mean(np.array(error[[5,6,7,17,18,19,29,30,31]])))
-    winter = np.sqrt(np.mean(np.array(error[[8,9,10,20,21,22,32,33,34]])))
-    return spring,summer,autumn,winter
-seasonal_rmse = {}
-seasonal_rmse['Persistence'] = cal_seasonal_rmse(y_gt_test,y_persist)
-seasonal_rmse['GCM'] = cal_seasonal_rmse(y_gt_test,y_pred_gcm)
-seasonal_rmse['Reanalysis'] = cal_seasonal_rmse(y_gt_test,y_pred_reanalysis)
-print('seasonal_rmse={}'.format(seasonal_rmse))
-#### yearly rmse
-def cal_yearly_rmse(y_gt,y_pred):
-    error = (y_pred-y_gt)**2
-    year2003 = np.sqrt(np.mean(error[0:12]))
-    year2004 = np.sqrt(np.mean(error[12:24]))
-    year2005 = np.sqrt(np.mean(error[24:36]))
-    return year2003,year2004,year2005
-yearly_rmse = {}
-yearly_rmse['Persistence'] = cal_yearly_rmse(y_gt_test,y_persist)
-yearly_rmse['GCM'] = cal_yearly_rmse(y_gt_test,y_pred_gcm)
-yearly_rmse['Reanalysis'] = cal_yearly_rmse(y_gt_test,y_pred_reanalysis)
-print('yearly_rmse={}'.format(yearly_rmse))
-#### extreme and not extreme rmse
-def cal_extreme_rmse(y_gt,y_pred,sigma=2):
-    thred = {1:0.6827,2:0.9545,3:0.9973,4:0.9999,5:1}
-    einds = abs(y_pred)>=thred[sigma]
-    error = (y_pred-y_gt)**2
-    extreme = np.sqrt(np.mean(error[einds]))
-    notextreme = np.sqrt(np.mean(error[~einds]))
-    return extreme,notextreme
-extreme_rmse = {}
-extreme_rmse['Persistence'] = cal_extreme_rmse(y_gt_test,y_persist)
-extreme_rmse['GCM'] = cal_extreme_rmse(y_gt_test,y_pred_gcm)
-extreme_rmse['Reanalysis'] = cal_extreme_rmse(y_gt_test,y_pred_reanalysis)
-print('extreme_rmse={}'.format(extreme_rmse))
-#### enso rmse
-def cal_enso_rmse(y_gt,y_pred):
-    error = (y_pred-y_gt)**2
-    warm = np.sqrt(np.mean(np.array(error[[0,1,18,19,20,21,22,23,24,25]])))
-    cool = np.sqrt(np.mean(np.array(error[[34,35]])))
-    neutral = np.sqrt(np.mean(np.array(error[[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,26,27,28,29,30,31,32,33]])))
-    return warm,cool,neutral
-enso_rmse = {}
-enso_rmse['Persistence'] = cal_enso_rmse(y_gt_test,y_persist)
-enso_rmse['GCM'] = cal_enso_rmse(y_gt_test,y_pred_gcm)
-enso_rmse['Reanalysis'] = cal_enso_rmse(y_gt_test,y_pred_reanalysis)
-print('enso_rmse={}'.format(enso_rmse))
-#### mean absolute error
-def cal_mae(y_gt,y_pred):
-    return np.mean(abs(y_gt-y_pred))
-mae = {}
-mae['Persistence'] = cal_mae(y_gt_test,y_persist)
-mae['GCM'] = cal_mae(y_gt_test,y_pred_gcm)
-mae['Reanalysis'] = cal_mae(y_gt_test,y_pred_reanalysis)
-print('mae={}'.format(mae))
-#### nash sutcliffe efficiency
-import hydroeval as he
-def cal_nash_sutcliffe(y_gt,y_pred):
-    return he.evaluator(he.nse, y_pred, y_gt)
-nash_sutcliffe = {}
-nash_sutcliffe['Persistence'] = cal_nash_sutcliffe(y_gt_test,y_persist)[0]
-nash_sutcliffe['GCM'] = cal_nash_sutcliffe(y_gt_test,y_pred_gcm)[0]
-nash_sutcliffe['Reanalysis'] = cal_nash_sutcliffe(y_gt_test,y_pred_reanalysis)[0]
-print('nash_sutcliffe={}'.format(nash_sutcliffe))
-
-rows = []
-rows.extend([correlation,seasonal_rmse,yearly_rmse,extreme_rmse,enso_rmse,mae,nash_sutcliffe])
-
-metrics_df = pd.DataFrame(rows,index=['correlation','seasonal_rmse','yearly_rmse','extreme_rmse','enso_rmse','mae','nash_sucliffe'],columns=['Persistence','GCM','Reanalysis'])
-print('metrics_df.shape={}'.format(metrics_df.shape))
-savepath = '../results/Regression/Persistence/'
-savename = '{}_metrics_comparison'.format(predictand)
-metrics_df.to_csv(savepath+savename+'.csv')
-
-
-
-
-#%% plot intermediate layer output for CNN
-def plot_featuremap():
-    import os
+def plot_gt_vs_pred_mean_std2(predictand='Amazon'):
     import numpy as np
+    import pandas as pd
     import matplotlib.pyplot as plt
 
-    data = np.load('../results/myCNN/lag_0/Amazon/all/intermediate_outputs_0.npy',allow_pickle=True).item()
-    savepath = '../results/featuremaps/'
-    if savepath and not os.path.exists(savepath): os.makedirs(savepath)
-    ngcm = 0
-    verbose = False # True
+    #predictand = 'Congo' # 'Amazon' # 
+    rootpath = '../results/Regression_saved/'
+    #folderpath = rootpath+'GCM_Mean_Nino34_Amazon/'
+
+    def get_cnn_preds(predictand,predictor):
+        if predictand=='Amazon' and predictor=='GCM':
+            filenames = ['../results/myCNN/lag_0/Amazon/2022-07-04_01.14.37.350410/GCM_Amazon_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Amazon/2022-07-04_01.29.03.496967/GCM_Amazon_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Amazon/2022-07-04_01.48.21.800859/GCM_Amazon_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Amazon/2022-07-04_02.04.41.272620/GCM_Amazon_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Amazon/2022-07-04_02.21.40.296363/GCM_Amazon_pred_results_test.npz'
+                        ]
+        elif predictand=='Amazon' and predictor=='Reanalysis':
+            filenames = ['../results/myCNN/lag_0/Amazon/2022-07-04_04.16.31.760760/Reanalysis_Amazon_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Amazon/2022-07-04_04.25.45.607138/Reanalysis_Amazon_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Amazon/2022-07-04_04.34.45.449290/Reanalysis_Amazon_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Amazon/2022-07-04_04.43.45.419319/Reanalysis_Amazon_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Amazon/2022-07-04_04.52.44.865083/Reanalysis_Amazon_pred_results_test.npz'
+                        ]
+        elif predictand=='Congo' and predictor=='GCM':
+            filenames = ['../results/myCNN/lag_0/Congo/2022-07-04_02.42.25.794225/GCM_Congo_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Congo/2022-07-04_03.00.02.587144/GCM_Congo_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Congo/2022-07-04_03.19.51.947740/GCM_Congo_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Congo/2022-07-04_03.35.44.116117/GCM_Congo_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Congo/2022-07-04_03.56.48.934124/GCM_Congo_pred_results_test.npz'
+                        ]
+        elif predictand=='Congo' and predictor=='Reanalysis':
+            filenames = ['../results/myCNN/lag_0/Congo/2022-07-04_05.01.47.556119/Reanalysis_Congo_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Congo/2022-07-04_05.11.06.402997/Reanalysis_Congo_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Congo/2022-07-04_05.20.19.628437/Reanalysis_Congo_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Congo/2022-07-04_05.29.34.177801/Reanalysis_Congo_pred_results_test.npz',
+                        '../results/myCNN/lag_0/Congo/2022-07-04_05.38.40.363720/Reanalysis_Congo_pred_results_test.npz'
+                        ]
+        pred_list = [np.load(filename)['preds'] for filename in filenames]
+        preds = np.stack(pred_list,axis=1)
+        preds_mean = np.mean(preds,axis=1)
+        preds_std = np.std(preds,axis=1)
+        return preds_mean, preds_std
+
+    # if predictand=='Amazon':
+    #     y_pred_gcm = np.load('../results/myCNN/lag_0/Amazon/2021-06-14_21.59.38.060129_GCM_masked_Amazon_region1/GCM_Amazon_pred_results_RMSE0.26488437282175314_test.npz')['preds']
+    #     y_pred_reanalysis = np.load('../results/myCNN/lag_0/Amazon/2021-06-15_00.23.44.969560_Reanalysis_masked_Amazon_region1/Reanalysis_Amazon_pred_results_RMSE0.31252981619007986_test.npz')['preds']
+    # elif predictand=='Congo':
+    #     y_pred_gcm = np.load('../results/myCNN/lag_0/Congo/2021-06-15_00.42.20.427649_GCM_masked_Congo_region1/GCM_Congo_pred_results_RMSE0.5976172958058634_test.npz')['preds']
+    #     y_pred_reanalysis = np.load('../results/myCNN/lag_0/Congo/2021-06-14_23.51.47.085179_Reanalysis_masked_Congo_region1/Reanalysis_Congo_pred_results_RMSE0.4853571058879003_test.npz')['preds']
+    y_pred_gcm_mean, y_pred_gcm_std = get_cnn_preds(predictand=predictand,predictor='GCM')
+    y_pred_reanalysis_mean, y_pred_reanalysis_std = get_cnn_preds(predictand=predictand,predictor='Reanalysis')
+
+    def get_y_historical_avg(predictand):
+        window = 3
+        riverpath = '../data/Climate/RiverFlow/processed/riverflow.csv'
+        riverflow_df = pd.read_csv(riverpath,index_col=0,header=0)
+        #%% Amazon river flow 
+        if predictand=='Amazon':
+            targets = riverflow_df[['0']].iloc[600-window+1:1272].to_numpy().reshape((-1,)) # from 1950-window to 200512
+        #%% Congo river flow 
+        elif predictand=='Congo':
+            targets = riverflow_df[['1']].iloc[600-window+1:1272].to_numpy().reshape((-1,)) # from 1950-window to 200512
+        ## moving average, result in 195001 to200512
+        targets = np.array([np.mean(targets[i:i+window]) for i in range(len(targets)-window+1)]).reshape((-1,))        
+        ## standardize
+        targets_mean = np.mean(targets[:600],axis=0)
+        targets_std = np.std(targets[:600],axis=0)
+        targets = (targets-targets_mean)/targets_std
+        targets = targets[:600].reshape((50,12))
+        #month_mean = np.array([np.mean(targets[i:600:12]) for i in range(12)])
+        month_mean = np.mean(targets,axis=0)
+        month_std = np.std(targets,axis=0)
+        y_persist = np.tile(month_mean,reps=3)
+        y_persist_std = np.tile(month_std,reps=3)
+        return y_persist, y_persist_std
+    y_persist, y_persist_std = get_y_historical_avg(predictand=predictand)
 
 
-    def plot_cnn_featuremap(img,savepathname=None,verbose=True,cmap='bwr',alpha=1):
-        fig = plt.figure()
-        plt.imshow(img,cmap=cmap,alpha=alpha)
-        plt.xticks([])
-        plt.yticks([])
-        if verbose:
-            plt.show()
-        if savepathname:
-            plt.savefig(savepathname+'.png',dpi=1200,bbox_inches='tight')
-            plt.close()
+    def get_ys(folderpath):
+        gt = np.load(folderpath+'y_gt.npz',allow_pickle=True)
+        Ntrain, Ntest = gt['Ntrain'], gt['Ntest']
+        y_gt_test = gt['y'][-Ntest:]
+        linear = np.load(folderpath+'linear.npy',allow_pickle=True)[-Ntest:]
+        lasso = np.load(folderpath+'lasso.npy',allow_pickle=True)[-Ntest:]
+        ridge = np.load(folderpath+'ridge.npy',allow_pickle=True)[-Ntest:]
+        elasticnet = linear = np.load(folderpath+'elasticNet.npy',allow_pickle=True)[-Ntest:]
+        randomforest = np.load(folderpath+'randomForest.npy',allow_pickle=True)[-Ntest:]
+        dnn = np.load(folderpath+'DNN.npy',allow_pickle=True)[-Ntest:]
+        y_pred_test = np.stack((linear,lasso,ridge,elasticnet,randomforest,dnn),axis=1)
+        y_pred_test_mean = np.mean(y_pred_test,axis=1)
+        y_pred_test_std = np.std(y_pred_test,axis=1)
+        ## anomaly add back average to get prediction
+        if 'Nino34_anom_' in folderpath:
+            season_avg = np.load(folderpath+'season_avg.npz')['season_avg']
+            season_avg_mean, season_avg_std = np.mean(season_avg[:Ntrain]), np.std(season_avg[:Ntrain])
+            season_avg_normalized = (season_avg-season_avg_mean)/season_avg_std
+            y_pred_test_mean += season_avg_normalized[-Ntest:] ## anomaly add back average to get prediction
 
-    for key,values in data.items():
-        if len(values.shape)!=3: continue
-        for ngcm in [0,-1]:
-            print('ploting {}_{}'.format(key,ngcm))
-            img = values[ngcm]
-            savepathname = savepath+'{}_{}'.format(key,abs(ngcm))
-            plot_cnn_featuremap(img=img,savepathname=savepathname,verbose=verbose,cmap='bwr',alpha=1)
+        return y_pred_test_mean,y_pred_test_std,y_gt_test
 
-    print('Job done!')
+    y_pred_mean_1,y_pred_std_1,y_gt = get_ys(rootpath+'GCM_Mean_Nino34_{}/'.format(predictand))
+    y_pred_mean_2,y_pred_std_2,_ = get_ys(rootpath+'GCM_Nino34_{}/'.format(predictand))
+    y_pred_mean_3,y_pred_std_3,_ = get_ys(rootpath+'Nino34_{}/'.format(predictand))
+    y_pred_mean_4,y_pred_std_4,_ = get_ys(rootpath+'Reanalysis_Mean_Nino34_{}/'.format(predictand))
+    y_pred_mean_5,y_pred_std_5,_ = get_ys(rootpath+'Reanalysis_Nino34_{}/'.format(predictand))
+    y_pred_mean_6,y_pred_std_6,_ = get_ys(rootpath+'Nino34_anom_{}/'.format(predictand))
+
+    print('y_pred_mean_1.shape={},y_gt.shape={}'.format(y_pred_mean_1.shape,y_gt.shape))
+
+    #%% calculate RMSE
+    rmse = {}
+    rmse['Persistence'] = np.sqrt(np.mean((y_persist-y_gt)**2))
+    rmse['GCM_Mean_Nino34'] = np.sqrt(np.mean((y_pred_mean_1-y_gt)**2))
+    rmse['GCM_Nino34'] = np.sqrt(np.mean((y_pred_mean_2-y_gt)**2))
+    rmse['Nino34'] = np.sqrt(np.mean((y_pred_mean_3-y_gt)**2))
+    rmse['Reanalysis_Mean_Nino34'] = np.sqrt(np.mean((y_pred_mean_4-y_gt)**2))
+    rmse['Reanalysis_Nino34'] = np.sqrt(np.mean((y_pred_mean_5-y_gt)**2))
+    rmse['Nino34_anom'] = np.sqrt(np.mean((y_pred_mean_6-y_gt)**2))
+    print('RMSE={}'.format(rmse))
+
+    #%% plot prediction
+    year_months = np.load('../data/Climate/year_months_195001-200512.npy')[-36:]
+    #interval = 4
+    year = [ym//100 for ym in year_months]
+    interval = 12 # 4
+    alpha = 0.3
+    fig = plt.figure(figsize=(12,5))
+    #fig = plt.figure(figsize=(24,10))
+    plt.plot(y_pred_mean_1,'-o',label='ESM Mean Nino 3.4')
+    plt.fill_between(x=range(len(y_gt)),y1=y_pred_mean_1-y_pred_std_1,y2=y_pred_mean_1+y_pred_std_1,alpha=alpha)
+    plt.plot(y_pred_mean_2,'-o',label='ESM Nino 3.4')
+    plt.fill_between(x=range(len(y_gt)),y1=y_pred_mean_2-y_pred_std_2,y2=y_pred_mean_2+y_pred_std_2,alpha=alpha)
+    plt.plot(y_pred_mean_3,'-o',label='Nino 3.4')
+    plt.fill_between(x=range(len(y_gt)),y1=y_pred_mean_3-y_pred_std_3,y2=y_pred_mean_3+y_pred_std_3,alpha=alpha)
+    plt.plot(y_pred_mean_4,'-o',label='Reanalysis Mean Nino 3.4')
+    plt.fill_between(x=range(len(y_gt)),y1=y_pred_mean_4-y_pred_std_4,y2=y_pred_mean_4+y_pred_std_4,alpha=alpha)
+    plt.plot(y_pred_mean_5,'-o',label='Reanalysis Nino 3.4')
+    plt.fill_between(x=range(len(y_gt)),y1=y_pred_mean_5-y_pred_std_5,y2=y_pred_mean_5+y_pred_std_5,alpha=alpha)
+    plt.plot(y_pred_mean_6,'-o',label='Nino 3.4 anomaly')
+    plt.fill_between(x=range(len(y_gt)),y1=y_pred_mean_6-y_pred_std_6,y2=y_pred_mean_6+y_pred_std_6,alpha=alpha)
+    plt.plot(y_persist,'-o',label='Historical Average')
+    plt.fill_between(x=range(len(y_gt)),y1=y_persist-y_persist_std,y2=y_persist+y_persist_std,alpha=alpha)
+
+
+    # plt.plot(y_pred_gcm,'-o',label='ESM SST')
+    # plt.plot(y_pred_reanalysis,'-o',label='Reanalysis SST')
+    plt.plot(y_pred_gcm_mean,'-o',label='ESM SST')
+    plt.fill_between(x=range(len(y_gt)),y1=y_pred_gcm_mean-y_pred_gcm_std,y2=y_pred_gcm_mean+y_pred_gcm_std,alpha=alpha)
+    plt.plot(y_pred_reanalysis_mean,'-o',label='Reanalysis SST')
+    plt.fill_between(x=range(len(y_gt)),y1=y_pred_reanalysis_mean-y_pred_reanalysis_std,y2=y_pred_reanalysis_mean+y_pred_reanalysis_std,alpha=alpha)
+
+
+    plt.plot(y_gt,'--o',color='k',label='Observation')
+    bottom, top = plt.ylim()  # return the current ylim
+    plt.ylim(bottom,top+0.5)
+    #plt.xlabel('Months')
+    plt.xlabel('Year')
+    plt.ylabel('Standardized River Flow')
+    #plt.xticks(ticks=range(0,len(y_gt),interval), labels=year_months[::interval]) # year-mon format xtick
+    plt.xticks(ticks=range(0,len(y_gt),interval), labels=year[::interval]) # year format xtick
+    plt.legend(loc='upper center',ncol=4)
+
+    savepath = rootpath
+    savename = '{}_prediction_comparison_4'.format(predictand)
+    plt.savefig(savepath+savename+'.png',dpi=1200,bbox_inches='tight')
+    plt.savefig(savepath+savename+'.pdf',dpi=1200,bbox_inches='tight')
+    plt.savefig(savepath+savename+'.svg',dpi=1200,bbox_inches='tight')
+    plt.show()
+
+
+# plot_gt_vs_pred_mean_std2()
 
 
 
-def cal_corrs():
+def plot_saliencymap_std(predictor='ESM',predictand='Amazon'):
+    import numpy as np
+    import os
+    import plots
+
+    fillnan = None # 0.0
+    threshold = 0.05
+    ## gcm region 1
+    lonlat = [50.5,-41.5,349.5,37.5] # [50.5,-42.5,349.5,37.5] # [-124.5,24.5,-66.5,49.5] # map area, [left,bottom,right,top]
+    parallels = np.arange(-40.0,40.0,10.0)
+    meridians = np.arange(60.0,350.0,30.0) # label lons, 60E to -9.5W, or 60E to 350E
+    ## region 1 mask
+    masks = np.load('../data/Climate/Reanalysis/masks_cobe_hadley_noaa_uod_1by_world.npy')
+    mask = masks[0,52:132,50:350] # cobe region 1
+    watercolor = 'white' # '#46bcec'
+    cmap = 'YlOrRd' # 'bwr' # 'rainbow' # 'Accent' #'YlGn' #'hsv' #'seismic' # 
+    alpha = 1.0 # 0.7
+    projection = 'merc' # 'cyl' # 
+    resolution = 'i' # 'h'
+    area_thresh = 10000
+    clim = None
+    pos_lons, pos_lats = [], [] # None, None # to plot specific locations
+    verbose =  True # False #
+
+    #predictor = 'ESM'
+    ESM2GCM = {'ESM':'GCM','Reanalysis':'Reanalysis'}
+    #predictand = 'Amazon'
+    method = 'All'
+    save_root_path = None
+    savepath = None if not save_root_path else save_root_path+'SaliencyMaps2/{}/'.format(method) # None # 
+    if savepath and not os.path.exists(savepath):
+        os.makedirs(savepath)
+    months = plots.get_months(method)  
+    #print(f"months={months}")
+
+    saliency_map_paths = {'GCM_Amazon':['2022-07-04_01.14.37.350410','2022-07-04_01.29.03.496967','2022-07-04_01.48.21.800859','2022-07-04_02.04.41.272620','2022-07-04_02.21.40.296363'],
+                        'Reanalysis_Amazon':['2022-07-04_04.16.31.760760','2022-07-04_04.25.45.607138','2022-07-04_04.34.45.449290','2022-07-04_04.43.45.419319','2022-07-04_04.52.44.865083'],
+                        'GCM_Congo':['2022-07-04_02.42.25.794225','2022-07-04_03.00.02.587144','2022-07-04_03.19.51.947740','2022-07-04_03.35.44.116117','2022-07-04_03.56.48.934124'],
+                        'Reanalysis_Congo':['2022-07-04_05.01.47.556119','2022-07-04_05.11.06.402997','2022-07-04_05.20.19.628437','2022-07-04_05.29.34.177801','2022-07-04_05.38.40.363720']}
+    imgs = []
+    for path in saliency_map_paths[f'{ESM2GCM[predictor]}_{predictand}']:
+        saliency_maps = np.load(f"../results/myCNN/lag_0/{predictand}/{path}/Saliency/myCNN_{ESM2GCM[predictor]}_{predictand}_saliency_maps.npy")
+        print(f"saliency_maps.shape={saliency_maps.shape}")
+        saliencymaps = plots.get_saliency(saliency_maps,fillnan=fillnan,threshold=threshold) # [Nmonth,Nlat,Nlon]
+        print('cyclical saliency_maps.shape={}'.format(saliencymaps.shape))
+        for i,month in enumerate(months):
+            #print(f"i={i},month={month}")
+            #if i>0: break
+            title,savename = plots.get_title_savename(method,i,ESM2GCM[predictor],predictand)
+            img = np.mean(saliencymaps[month,:,:],axis=0)
+            #img[img==0] = np.nan
+            print(f"img.shape={img.shape}")
+            #img[mask!=0] = np.nan # mask out ocean
+            img[mask==0] = np.nan # mask out land
+            imgs.append(img)
+
+    img = np.stack(imgs,axis=0)
+    print(f"after stack: img.shape={img.shape}")
+    img_mean = np.mean(img,axis=0)
+    print(f"img_mean.shape={img_mean.shape}")
+    img_std = np.std(img,axis=0)
+    vmin = np.nanmin(img_std)
+    vmax = np.nanmax(img_std)
+    print(f"img_std.shape={img_std.shape}")
+    print(f"mean(img_std)={np.nanmean(img_std)}, min(img_std)={vmin}, max(img_std)={vmax}")
+
+    ### overwrite
+    savepath = f"../results/Regression_saved/"
+    title = f'All Months Saliency Map std for {predictor} Predicting {predictand}'
+    savename = title.lower().replace(' ','_')
+
+    plots.plot_map(img_std,title=title,savepath=savepath,savename=savename,cmap=cmap,alpha=alpha,
+                    lonlat=lonlat,projection=projection,resolution=resolution,area_thresh=area_thresh,
+                    parallels=parallels,meridians=meridians,pos_lons=pos_lons, pos_lats=pos_lats,clim=clim,
+                    watercolor=watercolor,verbose=verbose,vminmax=[vmin,vmax])
+
+# for predictor in ['ESM','Reanalysis']:
+#     for predictand in ['Amazon','Congo']:
+#         plot_saliencymap_std(predictor=predictor,predictand=predictand)
+
+
+
+
+def cal_corr_indice_vs_river():
     import numpy as np
     import pandas as pd
     from scipy import stats
@@ -276,20 +371,12 @@ def cal_corrs():
 
 
 
-
-
-
-
-
-
-
-#%% plot ground truth vs prediction with std
 def plot_gt_vs_pred_mean_std():
     import numpy as np
     import pandas as pd
     import matplotlib.pyplot as plt
 
-    predictand = 'Amazon' # 'Congo' # 
+    predictand = 'Congo' # 'Amazon' # 
     rootpath = '../results/Regression_saved/'
     #folderpath = rootpath+'GCM_Mean_Nino34_Amazon/'
 
@@ -316,19 +403,15 @@ def plot_gt_vs_pred_mean_std():
         targets_mean = np.mean(targets[:600],axis=0)
         targets_std = np.std(targets[:600],axis=0)
         targets = (targets-targets_mean)/targets_std
-        ## persistence
         month_mean = np.array([np.mean(targets[i:600:12]) for i in range(12)])
-        month_std = np.array([np.std(targets[i:600:12]) for i in range(12)])
         y_persist = np.tile(month_mean,reps=3)
-        y_persist_std = np.tile(month_std,reps=3)
+        return y_persist
 
-        return y_persist,y_persist_std
-
-    y_persist,y_persist_std = get_y_persist(predictand=predictand)
+    y_persist = get_y_persist(predictand=predictand)
     # fig = plt.figure(figsize=(12,5))
     # plt.plot(y_persist)
     # plt.show()
-    #np.savez('../results/Regression/Persistence/{}_y_persist_y_persist_std.npz'.format(predictand),y_persist=y_persist,y_persist_std=y_persist_std)
+
 
     def get_ys(folderpath):
         gt = np.load(folderpath+'y_gt.npz',allow_pickle=True)
@@ -371,9 +454,9 @@ def plot_gt_vs_pred_mean_std():
     interval = 4
     alpha = 0.3
     fig = plt.figure(figsize=(12,5))
-    plt.plot(y_pred_mean_1,'-o',label='ESM Mean Nino 3.4')
+    plt.plot(y_pred_mean_1,'-o',label='GCM Mean Nino 3.4')
     plt.fill_between(x=range(len(y_gt)),y1=y_pred_mean_1-y_pred_std_1,y2=y_pred_mean_1+y_pred_std_1,alpha=alpha)
-    plt.plot(y_pred_mean_2,'-o',label='ESM Nino 3.4')
+    plt.plot(y_pred_mean_2,'-o',label='GCM Nino 3.4')
     plt.fill_between(x=range(len(y_gt)),y1=y_pred_mean_2-y_pred_std_2,y2=y_pred_mean_2+y_pred_std_2,alpha=alpha)
     plt.plot(y_pred_mean_3,'-o',label='Nino 3.4')
     plt.fill_between(x=range(len(y_gt)),y1=y_pred_mean_3-y_pred_std_3,y2=y_pred_mean_3+y_pred_std_3,alpha=alpha)
@@ -382,12 +465,11 @@ def plot_gt_vs_pred_mean_std():
     plt.plot(y_pred_mean_5,'-o',label='Reanalysis Nino 3.4')
     plt.fill_between(x=range(len(y_gt)),y1=y_pred_mean_5-y_pred_std_5,y2=y_pred_mean_5+y_pred_std_5,alpha=alpha)
     plt.plot(y_persist,'-o',label='Persistence')
-    plt.fill_between(x=range(len(y_gt)),y1=y_persist-y_persist_std,y2=y_persist+y_persist_std,alpha=alpha)
-    plt.plot(y_pred_gcm,'-o',label='ESM SST')
+    plt.plot(y_pred_gcm,'-o',label='GCM SST')
     plt.plot(y_pred_reanalysis,'-o',label='Reanalysis SST')
     plt.plot(y_gt,'--o',color='k',label='Observation')
     bottom, top = plt.ylim()  # return the current ylim
-    plt.ylim(bottom,top+0.8)
+    plt.ylim(bottom,top+0.5)
     plt.xlabel('Months')
     plt.ylabel('Stadardized River Flow')
     plt.xticks(ticks=range(0,len(y_gt),interval), labels=year_months[::interval])
@@ -395,11 +477,11 @@ def plot_gt_vs_pred_mean_std():
 
     savepath = rootpath
     savename = '{}_prediction_comparison'.format(predictand)
-    plt.savefig(savepath+savename+'.png',dpi=1200,bbox_inches='tight')
+    #plt.savefig(savepath+savename+'.png',dpi=1200,bbox_inches='tight')
     plt.show()
 
 
-
+# plot_gt_vs_pred_mean_std()
 
 
 
@@ -443,14 +525,11 @@ def plot_gt_vs_pred_mean_std():
 
 
 
-
-
-
 #%% plot
 def plot_corr_map2(name,predictor,predictand,lag=0):
     import numpy as np
     import os
-    #os.environ['PROJ_LIB'] = 'C:\\WIN10ProgramFiles\\anaconda3\\pkgs\\basemap-1.3.0-py37ha7665c8_0\\Library\\share\\basemap\\'
+    os.environ['PROJ_LIB'] = 'C:\\WIN10ProgramFiles\\anaconda3\\pkgs\\basemap-1.3.0-py37ha7665c8_0\\Library\\share\\basemap\\'
     from mpl_toolkits.basemap import Basemap
     import matplotlib.pyplot as plt
     import plots
@@ -502,8 +581,7 @@ def plot_corr_map2(name,predictor,predictand,lag=0):
     img = np.mean(maps_corr_p,axis=0)
     img[mask==0] = np.nan
     savename = '{}_corrmap_{}_{}_lag{}_avg'.format(name,predictor,predictand,lag)
-    title = 'Averaged {} Correlation between {} and {} Lag {}'.format(name,predictor,predictand,lag)
-    title = title.replace('GCM','ESM')
+    title = 'Averaged {} Correlation between {} and {} Lag {}'.format(name,predictor.replace('GCM','ESM'),predictand,lag)
     plots.plot_map(img,title=title,savepath=savepath,savename=savename,cmap=cmap,alpha=alpha,
                     lonlat=lonlat,projection=projection,resolution=resolution,area_thresh=area_thresh,
                     parallels=parallels,meridians=meridians,pos_lons=pos_lons, pos_lats=pos_lats,clim=clim,
@@ -512,8 +590,7 @@ def plot_corr_map2(name,predictor,predictand,lag=0):
     img = np.std(maps_corr_p,axis=0) 
     img[mask==0] = np.nan
     savename = '{}_corrmap_{}_{}_lag{}_std'.format(name,predictor,predictand,lag)
-    title = 'std {} Correlation between {} and {} Lag {}'.format(name,predictor,predictand,lag)
-    title = title.replace('GCM','ESM')
+    title = 'std {} Correlation between {} and {} Lag {}'.format(name,predictor.replace('GCM','ESM'),predictand,lag)
     plots.plot_map(img,title=title,savepath=savepath,savename=savename,cmap=cmap,alpha=alpha,
                     lonlat=lonlat,projection=projection,resolution=resolution,area_thresh=area_thresh,
                     parallels=parallels,meridians=meridians,pos_lons=pos_lons, pos_lats=pos_lats,clim=clim,
@@ -533,9 +610,9 @@ def plot_corr_map2(name,predictor,predictand,lag=0):
     #                 parallels=parallels,meridians=meridians,pos_lons=pos_lons, pos_lats=pos_lats,clim=clim,
     #                 watercolor=watercolor,verbose=verbose)
 # lag = 0
-# for name in ['Pearson','MutualInfo']: # ['Pearson','Spearman','Kendalltau','MutualInfo']:
-#     for predictor in ['GCM']: #['GCM','Reanalysis']:
-#         for predictand in ['Amazon','Congo']:
+# for name in ['Pearson']: #['Pearson','Spearman','Kendalltau','MutualInfo']:
+#     for predictor in ['GCM']: #['ESM','Reanalysis']:
+#         for predictand in ['Amazon']: #['Amazon','Congo']:
 #             print('processing {} {} {} {}'.format(name,predictor,predictand,lag))
 #             plot_corr_map2(name,predictor,predictand)
 
@@ -686,7 +763,293 @@ def cal_corr():
 
 
 
+#%% the same with plot_worldmap2() except some box color and text font larger
+def plot_worldmap3(year):
+    import os
+    #os.environ['PROJ_LIB'] = 'C:/WIN10ProgramFiles/anaconda3/pkgs/basemap-1.3.0-py37ha7665c8_0/Library/share/basemap/'
+    from mpl_toolkits.basemap import Basemap
+    from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
+    from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+    #import matplotlib
+    from matplotlib import pyplot as plt
+    from matplotlib.patches import Polygon
+    from matplotlib.collections import PatchCollection 
+    import numpy as np
 
+    lons = np.load('../data/Climate/Reanalysis/lons.npy',allow_pickle=True)
+    lats = np.load('../data/Climate/Reanalysis/lats.npy',allow_pickle=True)
+    data = np.load('../data/Climate/Reanalysis/sst_cobe_hadley_noaa_190001-201912_1by1_world.npy',allow_pickle=True)
+    cobe,hadley,noaa = data[:,0,:,:],data[:,1,:,:],data[:,2,:,:]
+
+    def get_diff_cobe(year):
+        # ### 2000 anomaly
+        # if year==2000:
+        #     cobe_avg = np.mean(cobe[972:1332,:,:],axis=0) # sst in year [1981 to 2010]
+        #     cobe_year = np.mean(cobe[1200:1212,:,:],axis=0) # sst in year 2000
+        ### 2001 anomaly
+        if year==2001:
+            cobe_avg = np.mean(cobe[1032:1392,:,:],axis=0) # sst in year [1986 to 2015]
+            cobe_year = np.mean(cobe[1212:1224,:,:],axis=0) # sst in year 2002
+        ### 2002 anomaly
+        elif year==2002:
+            cobe_avg = np.mean(cobe[1032:1392,:,:],axis=0) # sst in year [1986 to 2015]
+            cobe_year = np.mean(cobe[1224:1236,:,:],axis=0) # sst in year 2002
+        ### 2003 anomaly
+        elif year==2003:
+            cobe_avg = np.mean(cobe[1032:1392,:,:],axis=0) # sst in year [1986 to 2015]
+            cobe_year = np.mean(cobe[1236:1248,:,:],axis=0) # sst in year 2003
+        ### 2004 anomaly
+        elif year==2004:
+            cobe_avg = np.mean(cobe[1032:1392,:,:],axis=0) # sst in year [1986 to 2015]
+            cobe_year = np.mean(cobe[1248:1260,:,:],axis=0) # sst in year 2004
+        ### 2005 anomaly
+        elif year==2005:
+            cobe_avg = np.mean(cobe[1032:1392,:,:],axis=0) # sst in year [1986 to 2015]
+            cobe_year = np.mean(cobe[1260:1272,:,:],axis=0) # sst in year 2005
+        ### 2006 anomaly
+        elif year==2006:
+            cobe_avg = np.mean(cobe[1080:1440,:,:],axis=0) # sst in year [1990 to 2019]
+            cobe_year = np.mean(cobe[1272:1284,:,:],axis=0) # sst in year 2006
+        ### 2007 anomaly
+        elif year==2007:
+            cobe_avg = np.mean(cobe[1080:1440,:,:],axis=0) # sst in year [1990 to 2019]
+            cobe_year = np.mean(cobe[1284:1296,:,:],axis=0) # sst in year 2007
+        ### 2008 anomaly
+        elif year==2008:
+            cobe_avg = np.mean(cobe[1080:1440,:,:],axis=0) # sst in year [1990 to 2019]
+            cobe_year = np.mean(cobe[1296:1308,:,:],axis=0) # sst in year 2008
+        ### 2009 anomaly
+        elif year==2009:
+            cobe_avg = np.mean(cobe[1080:1440,:,:],axis=0) # sst in year [1990 to 2019]
+            cobe_year = np.mean(cobe[1308:1320,:,:],axis=0) # sst in year 2009
+        ### 2010 anomaly
+        elif year==2010:
+            cobe_avg = np.mean(cobe[1080:1440,:,:],axis=0) # sst in year [1990 to 2019]
+            cobe_year = np.mean(cobe[1320:1332,:,:],axis=0) # sst in year 2010
+        cobe_diff = cobe_year-cobe_avg
+        cobe_diff[cobe_diff==0] = np.nan
+        return cobe_diff
+
+    #year = 2001
+    cobe_diff = get_diff_cobe(year=year)
+    # fig = plt.figure()
+    # plt.imshow(cobe_diff)
+    # plt.show()
+
+    #lonlat = [235.5,24.5,293.5,49.5]
+    lonlat = [0.5,-89.5,359.5,89.5] # [-20,-80,330,80] # [lonmin,latmin,lonmax,latmax]
+    watercolor = 'white' # '#46bcec'
+    cmap = 'bwr' # 'rainbow' # 'YlOrRd' # 'Accent' #'YlGn' #'hsv' #'seismic' # 
+    alpha = 1 # 0.7
+    projection = 'cyl' # 'merc' # 
+    resolution = 'i' # 'l' # 'f' # 'h' # 
+    area_thresh =  10000 # None # 
+    clim = None
+    parallels = np.arange(-80.0,80.0,10.0)
+    meridians = np.arange(-20.0,330.0,30.0) # label lons, 60E to -9.5W, or 60E to 350E
+        
+    #%% draw world map
+    #fig = plt.figure(figsize=(18,8))
+    fig = plt.figure()
+    fig.set_size_inches([18,8])
+    mainax = fig.add_subplot(111) 
+    m = Basemap(llcrnrlon=lonlat[0],llcrnrlat=lonlat[1],urcrnrlon=lonlat[2],urcrnrlat=lonlat[3],
+                projection=projection,resolution=resolution,area_thresh=area_thresh)
+    m.drawcoastlines(linewidth=1.0,color='k')
+    #m.drawcountries(linewidth=1.0,color='k')
+    #m.drawstates(linewidth=0.2,color='k')
+    #m.drawrivers(color='dodgerblue',linewidth=1.0,zorder=1)
+    #m.fillcontinents(color='w',alpha=0.1)
+    #m.drawmapboundary(fill_color=watercolor)
+    m.fillcontinents(color='gray',alpha=0.3,lake_color=watercolor,zorder=0)
+    m.drawparallels(parallels,labels=[True,False,False,False],dashes=[1,2])
+    m.drawmeridians(meridians,labels=[False,False,False,True],dashes=[1,2])
+    img = np.flipud(cobe_diff)
+    m.imshow(img,cmap=cmap,alpha=alpha,zorder=0)
+    cbar = m.colorbar(fraction=0.02,location='bottom',extend='both',pad=0.5)
+    cbar.set_label(label='Annual SST anomaly in {} (in '.format(year)+r'$^{\circ}C$'+')', size=15)
+
+
+    #%% draw Congo waterway
+    ### m.readshapefile('../data/Shapefiles/hotosm_cod_waterways_lines/hotosm_cod_waterways_lines',name='CongoWaterWay',
+    #                 drawbounds=True,zorder=None,linewidth=0.5,color='blue')
+    # m.readshapefile('../data/Shapefiles/hotosm_cod_waterways_lines/hotosm_cod_waterways_lines', 'CongoWaterWay', drawbounds=False)
+    # for info, shape in zip(m.CongoWaterWay_info, m.CongoWaterWay):
+    #     #print('info={},len(shape)={}'.format(info,len(shape)))
+    #     shape = np.array(shape)
+    #     lons,lats = shape[:,0],shape[:,1]
+    #     m.plot(*m(lons, lats), linewidth=0.5, color='blue', zorder=18)
+    # plt.show()
+    #%% draw Amazon waterway
+    # # m.readshapefile('../data/Shapefiles/AmazonDrainage/AmazonDrainage',name='AmazonDrainage',
+    # #                 drawbounds=True)#,zorder=None,linewidth=0.5,color='blue')
+    # m.readshapefile('../data/Shapefiles/AmazonDrainage/AmazonDrainage',name='AmazonDrainage',drawbounds=False)
+    # for info, shape in zip(m.AmazonDrainage_info, m.AmazonDrainage):
+    #     #print('info={},len(shape)={}'.format(info,len(shape)))
+    #     shape = np.array(shape)
+    #     lons,lats = shape[:,0]+360,shape[:,1]
+    #     m.plot(*m(lons, lats), linewidth=0.5, color='blue', zorder=18)
+    # plt.show()
+
+
+    #%% plot Amazon River basin
+    #m.readshapefile('../data/Shapefiles/AmazonBasin/amapoly_ivb', 'AmazonBasin', drawbounds=False)
+    m.readshapefile('../data/Climate/Shapefiles/AmazonBasinLimits-master/amazon_sensulatissimo_gmm_v1', 'AmazonBasin', drawbounds=True)
+    patches_amazon = []
+    for info, shape in zip(m.AmazonBasin_info, m.AmazonBasin):
+        shape = np.array(shape)
+        shape[:,0] += 360 # transform negative longitude to positive
+        patches_amazon.append(Polygon(xy=shape, closed=True))
+    mainax.add_collection(PatchCollection(patches_amazon, facecolor='g', edgecolor='g', alpha=0.5))
+    pos_lons,pos_lats = [304.49,15.3],[-1.95,-4.3]
+    lonss, latss = m(pos_lons, pos_lats)
+    m.scatter(lonss, latss, marker = 'o', color='k', zorder=2,s=10)
+    #%% draw Congo River Basin
+    m.readshapefile('../data/Climate/Shapefiles/congo_basin_polyline/congo_basin_polyline', 'CongoBasin', drawbounds=False)
+    patches_congo,shapes = [],[]
+    for info, shape in zip(m.CongoBasin_info, m.CongoBasin):
+        #print('info={},len(shape)={}'.format(info,len(shape)))
+        shapes.append(np.array(shape))
+    shapes = [shapes[2],shapes[0],shapes[4],shapes[3],shapes[1]]
+    shapes = np.concatenate(shapes,axis=0)
+    patches_congo.append(Polygon(xy=shapes, closed=True))
+    mainax.add_collection(PatchCollection(patches_congo, facecolor='g', edgecolor='g', alpha=0.5))
+
+    #%%
+    def draw_rectangle(lats, lons, m, facecolor='red', alpha=0.5, edgecolor='k',fill=False,**kwargs):
+        x, y = m(lons, lats)
+        xy = zip(x,y)
+        rect = Polygon(list(xy),facecolor=facecolor,alpha=alpha,edgecolor=edgecolor,fill=fill,**kwargs)
+        plt.gca().add_patch(rect)
+    ## plot enso regions
+    nino12_lats,nino12_lons = [-10,0,0,-10],[270,270,280,280]
+    nino3_lats,nino3_lons = [-5,5,5,-5],[210,210,270,270]
+    nino34_lats,nino34_lons = [-5,5,5,-5],[190,190,240,240]
+    #oni_lats,oni_lons = nino34_lats,nino34_lons
+    nino4_lats,nino4_lons = [-5,5,5,-5],[160,160,210,210]
+    draw_rectangle(nino4_lats,nino4_lons,m,facecolor='c',alpha=1.0,edgecolor='c',fill=False,linewidth=4,zorder=5)
+    draw_rectangle(nino3_lats,nino3_lons,m,facecolor='y',alpha=1.0,edgecolor='y',fill=False,linewidth=4,zorder=5)
+    draw_rectangle(nino34_lats,nino34_lons,m,edgecolor='k',fill=False,linewidth=4,hatch='/',zorder=5)
+    draw_rectangle(nino12_lats,nino12_lons,m,facecolor='mediumspringgreen',alpha=0.8,edgecolor='mediumspringgreen',fill=False,linewidth=4,zorder=5)
+    #%% plot IOD regions
+    dmi_lats_west,dmi_lons_west = [-10,10,10,-10],[50,50,70,70]
+    dmi_lats_east,dmi_lons_east = [-10,0,0,-10],[90,90,110,110]
+    draw_rectangle(dmi_lats_west,dmi_lons_west,m,facecolor='orange',alpha=1,edgecolor='orange',fill=False,linewidth=4,zorder=5)
+    draw_rectangle(dmi_lats_east,dmi_lons_east,m,facecolor='m',alpha=1,edgecolor='m',fill=False,linewidth=4,zorder=5)
+    ## add text
+    def add_text(lat, lon, m, text,fontsize=12,**kwargs):
+        x, y = m(lon, lat)
+        plt.text(x,y,text,**kwargs)
+    add_text(lat=-10,lon=165,m=m,text='Nino4',color='c',fontsize=20,weight='bold')
+    add_text(lat=-10,lon=245,m=m,text='Nino3',color='y',fontsize=20,weight='bold')
+    add_text(lat=-10,lon=210,m=m,text='Nino3.4',color='k',fontsize=20,weight='bold')
+    add_text(lat=-15,lon=260,m=m,text='Nino1+2',color='mediumspringgreen',fontsize=20,weight='bold')
+    add_text(lat=-15,lon=55,m=m,text='IOD west',color='orange',fontsize=20,weight='bold')
+    add_text(lat=-15,lon=95,m=m,text='IOD east',color='m',fontsize=20,weight='bold')
+    add_text(lat=5,lon=310,m=m,text='Amazon Basin',color='g',fontsize=20,weight='bold')
+    add_text(lat=10,lon=10,m=m,text='Congo Basin',color='g',fontsize=20,weight='bold')
+
+
+
+    #%% draw zoom in sub figures
+    def add_subplot_axes(ax,pos,facecolor='w'):
+        fig = plt.gcf()
+        box = ax.get_position()
+        width = box.width
+        height = box.height
+        inax_position  = ax.transAxes.transform(pos[0:2])
+        transFigure = fig.transFigure.inverted()
+        infig_position = transFigure.transform(inax_position)    
+        x = infig_position[0]
+        y = infig_position[1]
+        width *= pos[2]
+        height *= pos[3]  # <= Typo was here
+        subax = fig.add_axes([x,y,width,height],facecolor=facecolor)
+        subax.set_xticks([])
+        subax.set_yticks([])
+        # x_labelsize = subax.get_xticklabels()[0].get_size()
+        # y_labelsize = subax.get_yticklabels()[0].get_size()
+        # x_labelsize *= rect[2]**0.5
+        # y_labelsize *= rect[3]**0.5
+        # subax.xaxis.set_tick_params(labelsize=x_labelsize)
+        # subax.yaxis.set_tick_params(labelsize=y_labelsize)
+        return subax
+
+    #%% draw Amazon River zoomed in basin
+    subpos = [0.6,0.65,0.3,0.3] # [left, bottom, width, height]
+    subax3 = add_subplot_axes(mainax,subpos)
+
+    # subax3 = zoomed_inset_axes(parent_axes=mainax,zoom=2,loc='upper right')
+    # subax3.set_xlim(280,316)
+    # subax3.set_ylim(-21,10)
+    # subax3.set_xticks([])
+    # subax3.set_yticks([])
+        
+    m3 = Basemap(llcrnrlon=280,llcrnrlat=-21,urcrnrlon=316,urcrnrlat=10,resolution='i',ax=subax3,area_thresh=8000)
+    m3.shadedrelief()
+
+    #mark_inset(mainax, subax3, loc1=2, loc2=4, fc="none", ec="0.5")
+
+    # m3.drawcoastlines(linewidth=1.0,color='k')
+    # m3.fillcontinents(color='gray',alpha=0.3,lake_color=watercolor,zorder=0)
+    # #m3.drawcountries(color='k', linewidth=1)
+    # m3.drawmapboundary(fill_color=watercolor)
+    # #m3.drawrivers(color='dodgerblue',linewidth=0.5,zorder=1)
+    lonss,latss = m3(15.3,-4.3)
+    m3.scatter(lonss, latss, marker = 'o', color='k', zorder=2,s=15)
+    # m3.readshapefile('../data/Shapefiles/AmazonBasinLimits-master/amazon_sensulatissimo_gmm_v1', 'AmazonBasin', drawbounds=True)
+    # patches_amazon = []
+    # for info, shape in zip(m3.AmazonBasin_info, m3.AmazonBasin):
+    #     shape = np.array(shape)
+    #     shape[:,0] += 360 # transform negative longitude to positive
+    #     patches_amazon.append(Polygon(xy=shape, closed=True,fill=False))
+    # subax3.add_collection(PatchCollection(patches_amazon,edgecolor='r',alpha=0.2))
+    m3.readshapefile('../data/Climate/Shapefiles/AmazonDrainage/AmazonDrainage',name='AmazonDrainage',drawbounds=False)
+    for info, shape in zip(m3.AmazonDrainage_info, m3.AmazonDrainage):
+        #print('info={},len(shape)={}'.format(info,len(shape)))
+        shape = np.array(shape)
+        lons,lats = shape[:,0]+360,shape[:,1]
+        m3.plot(*m3(lons, lats), linewidth=0.2, color='blue', zorder=1)
+    #%% draw Congo River zoomed in basin
+    subpos = [0.08,0.65,0.3,0.3] # [left, bottom, width, height]
+    subax2 = add_subplot_axes(mainax,subpos)
+    m2 = Basemap(llcrnrlon=10,llcrnrlat=-15,urcrnrlon=35,urcrnrlat=10,resolution='i',ax=subax2,area_thresh=8000)
+    m2.shadedrelief()
+    # m2.drawcoastlines(linewidth=1.0,color='k')
+    # m2.fillcontinents(color='gray',alpha=0.3,lake_color=watercolor,zorder=0)
+    # #m2.drawcountries(color='k', linewidth=1)
+    # m2.drawmapboundary(fill_color=watercolor)
+    # #m2.drawrivers(color='dodgerblue',linewidth=0.5,zorder=1)
+    lonss,latss = m2(304.49,-1.95)
+    m2.scatter(lonss, latss, marker = 'o', color='k', zorder=2,s=15)
+    # m2.readshapefile('../data/Shapefiles/congo_basin_polyline/congo_basin_polyline', 'CongoBasin', drawbounds=False)
+    # patches_congo,shapes = [],[]
+    # for info, shape in zip(m2.CongoBasin_info, m2.CongoBasin):
+    #     #print('info={},len(shape)={}'.format(info,len(shape)))
+    #     shapes.append(np.array(shape))
+    # shapes = [shapes[2],shapes[0],shapes[4],shapes[3],shapes[1]]
+    # shapes = np.concatenate(shapes,axis=0)
+    # patches_congo.append(Polygon(xy=shapes, closed=True,fill=False))
+    # subax2.add_collection(PatchCollection(patches_congo,edgecolor='m',alpha=0.2))
+    m2.readshapefile('../data/Climate/Shapefiles/hotosm_cod_waterways_lines/hotosm_cod_waterways_lines',name='CongoWaterWay',
+                    drawbounds=True,zorder=1,linewidth=0.2,color='blue')
+    # m2.readshapefile('../data/Shapefiles/hotosm_cod_waterways_lines/hotosm_cod_waterways_lines', 'CongoWaterWay', drawbounds=False)
+    # for info, shape in zip(m2.CongoWaterWay_info, m2.CongoWaterWay):
+    #     #print('info={},len(shape)={}'.format(info,len(shape)))
+    #     shape = np.array(shape)
+    #     lons,lats = shape[:,0],shape[:,1]
+    #     m2.plot(*m2(lons, lats), linewidth=0.5, color='blue', zorder=1)
+
+
+    savepath = '../data/'
+    savename = 'worldmap_{}'.format(year)
+    #plt.savefig(savepath+savename+'.png',dpi=1200,bbox='tight')
+    #plt.savefig(savepath+savename+'.svg',dpi=1200,bbox='tight')
+    #plt.savefig(savepath+savename+'.pdf',dpi=1200,bbox='tight')
+    plt.show()
+    plt.close()
+
+    return
 
 #%%
 def plot_worldmap2(year):
@@ -705,9 +1068,6 @@ def plot_worldmap2(year):
     lats = np.load('../data/Climate/Reanalysis/lats.npy',allow_pickle=True)
     data = np.load('../data/Climate/Reanalysis/sst_cobe_hadley_noaa_190001-201912_1by1_world.npy',allow_pickle=True)
     cobe,hadley,noaa = data[:,0,:,:],data[:,1,:,:],data[:,2,:,:]
-
-
-
 
     def get_diff_cobe(year):
         # ### 2000 anomaly
@@ -972,7 +1332,7 @@ def plot_worldmap2(year):
 
     savepath = '../data/'
     savename = 'worldmap_{}'.format(year)
-    plt.savefig(savepath+savename+'.png',dpi=1200,bbox='tight')
+    #plt.savefig(savepath+savename+'.png',dpi=1200,bbox='tight')
     #plt.show()
     plt.close()
 
@@ -1125,95 +1485,100 @@ def plot_worldmap2(year):
 
 
 #%% plot river flow
-# def plot_river_flow_enso_index():
-#     import numpy as np
-#     import pandas as pd
-#     import matplotlib.pyplot as plt
+def plot_river_flow_enso_index():
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
     
     
-#     # def read_enso():
-#     #     years = np.load('../data/Nino/processed/Nino12_187001-201912_array.npz')['years']
-#     #     nino12 = pd.read_csv('../data/Nino/processed/Nino12_187001-201912_series.csv',index_col=0)
-#     #     nino3 = pd.read_csv('../data/Nino/processed/Nino3_187001-201912_series.csv',index_col=0)
-#     #     nino34 = pd.read_csv('../data/Nino/processed/Nino34_187001-201912_series.csv',index_col=0)
-#     #     nino4 = pd.read_csv('../data/Nino/processed/Nino4_187001-201912_series.csv',index_col=0)
-#     #     nino12_anom = pd.read_csv('../data/Nino/processed/Nino12_anom_187001-201912_series.csv',index_col=0)
-#     #     nino3_anom = pd.read_csv('../data/Nino/processed/Nino3_anom_187001-201912_series.csv',index_col=0)
-#     #     nino34_anom = pd.read_csv('../data/Nino/processed/Nino34_anom_187001-201912_series.csv',index_col=0)
-#     #     nino4_anom = pd.read_csv('../data/Nino/processed/Nino4_anom_187001-201912_series.csv',index_col=0)
-#     #     tni = pd.read_csv('../data/Nino/processed/Trans_Nino_index_hadISST_187001-201912_series.csv',index_col=0)
-#     #     soi = pd.read_csv('../data/Nino/processed/soi_186601-201912_series.csv',index_col=0)
-#     #     soi = soi.loc[187001:] # 187001 to 201912
+    # def read_enso():
+    #     years = np.load('../data/Nino/processed/Nino12_187001-201912_array.npz')['years']
+    #     nino12 = pd.read_csv('../data/Nino/processed/Nino12_187001-201912_series.csv',index_col=0)
+    #     nino3 = pd.read_csv('../data/Nino/processed/Nino3_187001-201912_series.csv',index_col=0)
+    #     nino34 = pd.read_csv('../data/Nino/processed/Nino34_187001-201912_series.csv',index_col=0)
+    #     nino4 = pd.read_csv('../data/Nino/processed/Nino4_187001-201912_series.csv',index_col=0)
+    #     nino12_anom = pd.read_csv('../data/Nino/processed/Nino12_anom_187001-201912_series.csv',index_col=0)
+    #     nino3_anom = pd.read_csv('../data/Nino/processed/Nino3_anom_187001-201912_series.csv',index_col=0)
+    #     nino34_anom = pd.read_csv('../data/Nino/processed/Nino34_anom_187001-201912_series.csv',index_col=0)
+    #     nino4_anom = pd.read_csv('../data/Nino/processed/Nino4_anom_187001-201912_series.csv',index_col=0)
+    #     tni = pd.read_csv('../data/Nino/processed/Trans_Nino_index_hadISST_187001-201912_series.csv',index_col=0)
+    #     soi = pd.read_csv('../data/Nino/processed/soi_186601-201912_series.csv',index_col=0)
+    #     soi = soi.loc[187001:] # 187001 to 201912
         
-#     #     indices = pd.concat((nino12,nino3,nino34,nino4,nino12_anom,nino3_anom,nino34_anom,nino4_anom,tni,soi),axis=1) # 187001 to 201912
-#     #     return indices, years  
+    #     indices = pd.concat((nino12,nino3,nino34,nino4,nino12_anom,nino3_anom,nino34_anom,nino4_anom,tni,soi),axis=1) # 187001 to 201912
+    #     return indices, years  
     
-#     # indices_df, _ = read_enso() # 187001 to 201912
+    # indices_df, _ = read_enso() # 187001 to 201912
     
-#     # nino34_anom_df = indices_df['Nino34_anom'].loc[195001:201012]
-#     # nino34_anom = nino34_anom_df.to_numpy().reshape((-1,12))
+    # nino34_anom_df = indices_df['Nino34_anom'].loc[195001:201012]
+    # nino34_anom = nino34_anom_df.to_numpy().reshape((-1,12))
     
-#     def get_colors(heights):
-#         colors = []
-#         for h in heights:
-#             if h>=0.5:
-#                 c = 'r'
-#             elif h<=-0.5:
-#                 c = 'b'
-#             else:
-#                 c = 'gray'
-#             colors.append(c)
-#         return colors
+    def get_colors(heights):
+        colors = []
+        for h in heights:
+            if h>=0.5:
+                c = 'r'
+            elif h<=-0.5:
+                c = 'b'
+            else:
+                c = 'gray'
+            colors.append(c)
+        return colors
     
-#     oni_df = pd.read_csv('../data/ONI/raw/oni_nino34_anomaly_new.csv',index_col=0)
-#     oni = oni_df.loc[1950:2010].to_numpy()
-#     oni = oni[-10:,:]
+    oni_df = pd.read_csv('../data/ONI/raw/oni_nino34_anomaly_new.csv',index_col=0)
+    oni = oni_df.loc[1950:2010].to_numpy()
+    oni = oni[-10:,:]
     
-#     riverpath = 'C:\\Users\\YM\\OneDrive - Northeastern University\\myProgramFiles\\myPythonFiles\\RiverFlow\\data\\RiverFlow\\processed\\riverflow.csv'
-#     riverflow_df = pd.read_csv(riverpath,index_col=0,header=0)
-#     amazon = riverflow_df[['0']].loc[195001:201012]#.to_numpy().reshape((-1,))
-#     congo = riverflow_df[['1']].loc[195001:201012]#.to_numpy().reshape((-1,)) # from 1950 to 201012
-#     years = np.array(list(range(1950,2011)))
-#     amazon_annual = np.sum(amazon.to_numpy().reshape((-1,12)),axis=1)
-#     congo_annual = np.sum(congo.to_numpy().reshape((-1,12)),axis=1)
-#     amazon_annual_10 = amazon_annual[-10:]
-#     congo_annual_10 = congo_annual[-10:]
-#     years = years[-10:]
-#     amazon_mean,amazon_std = np.mean(amazon_annual_10),np.std(amazon_annual_10)
-#     amazon_annual_10 = (amazon_annual_10-amazon_mean)/amazon_std
-#     congo_mean,congo_std = np.mean(congo_annual_10),np.std(congo_annual_10)
-#     congo_annual_10 = (congo_annual_10-congo_mean)/congo_std
+    riverpath = '../data/Climate/RiverFlow/processed/riverflow.csv'
+    riverflow_df = pd.read_csv(riverpath,index_col=0,header=0)
+    amazon = riverflow_df[['0']].loc[195001:201012]#.to_numpy().reshape((-1,))
+    congo = riverflow_df[['1']].loc[195001:201012]#.to_numpy().reshape((-1,)) # from 1950 to 201012
+    years = np.array(list(range(1950,2011)))
+    amazon_annual = np.sum(amazon.to_numpy().reshape((-1,12)),axis=1)
+    congo_annual = np.sum(congo.to_numpy().reshape((-1,12)),axis=1)
+    amazon_annual_10 = amazon_annual[-10:]
+    congo_annual_10 = congo_annual[-10:]
+    years = years[-10:]
+    amazon_mean,amazon_std = np.mean(amazon_annual_10),np.std(amazon_annual_10)
+    amazon_annual_10 = (amazon_annual_10-amazon_mean)/amazon_std
+    congo_mean,congo_std = np.mean(congo_annual_10),np.std(congo_annual_10)
+    congo_annual_10 = (congo_annual_10-congo_mean)/congo_std
     
-#     #fig = plt.figure(figsize=(9,4))
-#     fig,(ax1,ax2) = plt.subplots(nrows=2,ncols=1,figsize=(9,4),sharex=True)
-#     suptitle = 'Standardized Annual Discharge Anomaly and ONI Index'
-#     plt.suptitle(suptitle)
-#     ax1.plot(years,amazon_annual_10,'g',linewidth=2,marker='o',markersize=5,label='Amazon')
-#     ax1.plot(years,congo_annual_10,'--',color='lime',linewidth=2,marker='s',markersize=5,label='Congo')
-#     ax1.set_ylabel('Standardized Anomaly')
-#     ax1.grid()
-#     ax1.legend(loc='upper left')
+    #fig = plt.figure(figsize=(9,4))
+    fig,(ax1,ax2) = plt.subplots(nrows=2,ncols=1,figsize=(9,4),sharex=True)
+    suptitle = 'Standardized Annual Discharge Anomaly and ONI Index'
+    plt.suptitle(suptitle)
+    ax1.plot(years,amazon_annual_10,'g',linewidth=2,marker='o',markersize=5,label='Amazon')
+    ax1.plot(years,congo_annual_10,'--',color='lime',linewidth=2,marker='s',markersize=5,label='Congo')
+    ax1.set_ylabel('Standardized Anomaly')
+    ax1.grid()
+    ax1.legend(loc='upper left')
     
-#     w = 1.0/12
-#     rects = {}
-#     xx = years[0]+np.arange(len(oni))
-#     for month in range(12):
-#         barcenters = xx+(month-5.5)*w
-#         heights = oni[:,month]
-#         colors = get_colors(heights)
-#         rects[month] = ax2.bar(x=barcenters,height=heights,width=w,label=oni_df.columns[month],color=colors)
-#     ax2.axhline(y=0.5,xmin=0,xmax=10,color='r',linestyle='--',linewidth=0.5)
-#     ax2.axhline(y=-0.5,xmin=0,xmax=10,color='b',linestyle='--',linewidth=0.5)
-#     ax2.set_ylabel('ONI Index')
-#     ax2.set_xlabel('Year')
-#     ax2.set_xticks(years)
-#     ax2.set_xticklabels(years)
-#     ax2.grid()
-#     plt.show()
+    w = 1.0/12
+    rects = {}
+    xx = years[0]+np.arange(len(oni))
+    for month in range(12):
+        barcenters = xx+(month-5.5)*w
+        heights = oni[:,month]
+        colors = get_colors(heights)
+        rects[month] = ax2.bar(x=barcenters,height=heights,width=w,label=oni_df.columns[month],color=colors)
+    ax2.axhline(y=0.5,xmin=0,xmax=10,color='r',linestyle='--',linewidth=0.5)
+    ax2.axhline(y=-0.5,xmin=0,xmax=10,color='b',linestyle='--',linewidth=0.5)
+    ax2.set_ylabel('ONI Index')
+    ax2.set_xlabel('Year')
+    ax2.set_xticks(years)
+    ax2.set_xticklabels(years)
+    ax2.grid()
     
-#     savepath = '../data/'
-#     savename = suptitle.lower().replace(' ','_')
-#     plt.savefig(savepath+savename+'.png',dpi=1200,bbox='tight')
+    savepath = '../data/'
+    savename = suptitle.lower().replace(' ','_')
+    plt.savefig(savepath+savename+'.png',dpi=1200,bbox='tight')
+    plt.savefig(savepath+savename+'.pdf',dpi=1200,bbox='tight')
+    plt.savefig(savepath+savename+'.svg',dpi=1200,bbox='tight')
+
+    plt.show()
+
+    return
 
 
 
@@ -1664,6 +2029,257 @@ def cal_dmi_enso_teleconnections(predictor,threshold):
 #         cal_dmi_enso_teleconnections(predictor,threshold)
 
 
+#%% plot Figure 4a
+def get_predictor_prop_hist2(predictor='GCM',c_th=0.9,c_th2=0.9):
+    import time
+    import numpy as np
+    import pandas as pd
+    import matplotlib
+    matplotlib.use('Agg')
+    #matplotlib.use('Qt5Agg')
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.basemap import Basemap
+
+    start_time = time.time()
+    print(f"processing predictor={predictor}, c_th={c_th}, c_th2={c_th2}")
+    #predictor = 'GCM' # 'ESM' #'Reanalysis' # 
+    predictor2title = {'GCM':'ESM', 'Reanalysis':'Reanalysis'}
+    # c_th = 0.5
+    # c_th2 = 0.9
+    d_th = 19000 # 15000 # 
+    width = 300
+    bins,bin_range,density = 50,[80,19950],False
+    if predictor=='Reanalysis':
+        #c_th,c_th2 = 0.5,0.5 # 
+        #c_th,c_th2 = 0.9,0.9
+        #c_th,c_th2 = 0.5,0.6
+        top = 52
+        bottom = 132
+        left,right = 50,350
+        filepath = '../data/Climate/Reanalysis/Autocorrelation/'
+        filename = 'dis_corr_p_loc1_loc2_lat{}-{}'.format(top,bottom)
+        lats = np.load('../data/Climate/Reanalysis/lats.npy')
+        lons = np.load('../data/Climate/Reanalysis/lons.npy')
+        #lons = np.array([lons[i] if lons[i]<=180 else lons[i]-360 for i in range(len(lons))])
+        lats = lats[top:bottom]
+        lons = lons[left:right]
+    elif predictor=='GCM': #'ESM': #
+        #c_th = 0.5 # 0.9
+        #c_th2 = 0.9 # 0.93
+        top = 50
+        bottom = 130
+        left,right = 50,350
+        filepath = '../data/Climate/GCM/Autocorrelation/'
+        filename = 'dis_corr_p_loc1_loc2_lat{}-{}'.format(top,bottom)
+        lats = np.load('/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/lats_gcm.npy')
+        lons = np.load('/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/lons_gcm.npy')
+        lats = lats[top:bottom]
+        lons = lons[left:right]
+    savepath = filepath+'Figs/'
+    dis_corr_p = np.load(filepath+filename+'.npy',allow_pickle=True)
+    #dis_corr_p = dis_corr_p[:10000]
+    inds = np.array([i for i in range(len(dis_corr_p)) if type(dis_corr_p[i,0])==float and abs(dis_corr_p[i,1])>c_th])
+    corr = dis_corr_p[inds,1]
+    latlons_inds = dis_corr_p[inds,3:].astype(int)
+    ## get correlation map
+    corr_map = np.zeros((bottom-top,width))
+    corr_map_weighted = np.zeros((bottom-top,width))
+    for i in range(len(latlons_inds)):
+        la1,lo1,la2,lo2 = latlons_inds[i,:]
+        corr_map[la1,lo1] += 1
+        corr_map[la2,lo2] += 1
+        corr_map_weighted[la1,lo1] += abs(corr[i])
+        corr_map_weighted[la2,lo2] += abs(corr[i])
+    corr_map[corr_map==0] = np.nan 
+    corr_map_weighted[corr_map_weighted==0] = np.nan
+    ## get teleconnection locations
+    lon1,lat1,lon2,lat2 = [],[],[],[]
+    inds2 = np.array([i for i in range(len(dis_corr_p)) if type(dis_corr_p[i,0])==float and dis_corr_p[i,0]>d_th and abs(dis_corr_p[i,1])>c_th2])
+    if len(inds2)>0:
+        latlons_inds2 = dis_corr_p[inds2,3:].astype(int)
+        lon1 = np.array([lons[latlons_inds2[i,1]] for i in range(len(latlons_inds2))])
+        lat1 = np.array([lats[latlons_inds2[i,0]] for i in range(len(latlons_inds2))])
+        lon2 = np.array([lons[latlons_inds2[i,3]] for i in range(len(latlons_inds2))])
+        lat2 = np.array([lats[latlons_inds2[i,2]] for i in range(len(latlons_inds2))])
+    for i in range(len(lon1)):
+        if lon1[i]<0: lon1[i] += 360
+        if lon2[i]<0: lon2[i] += 360
+    ## plot map
+    lonlat = [50.5,-41.5,349.5,37.5] #
+    parallels = np.arange(-40.0,40.0,10.0)
+    meridians = np.arange(60.0,350.0,30.0) # label lons, 60E to -9.5W, or 60E to 350E
+    watercolor = 'white' # '#46bcec'
+    cmap = 'viridis' #'YlGn' #'YlOrRd' # 'rainbow' # 'Accent' #'hsv' #'seismic' # 
+    alpha = 1 # 0.7
+    projection = 'merc' # 'cyl' # 
+    resolution = 'i' # 'h'
+    area_thresh = 10000
+
+    img = corr_map
+    img = np.flipud(img)
+    fig = plt.figure(figsize=(15,4)) 
+    m = Basemap(llcrnrlon=lonlat[0],llcrnrlat=lonlat[1],urcrnrlon=lonlat[2],urcrnrlat=lonlat[3],
+                projection=projection,resolution=resolution,area_thresh=area_thresh)
+    m.drawcoastlines(linewidth=1.0,color='k')
+    m.drawcountries(linewidth=1.0,color='k')
+    m.drawstates(linewidth=0.2,color='k')
+    #m.fillcontinents(color='w',alpha=0.1)
+    m.drawmapboundary(fill_color=watercolor)
+    m.fillcontinents(color = 'white',alpha=1.0,lake_color=watercolor)
+    m.drawparallels(parallels,labels=[True,False,False,False],dashes=[1,2])
+    m.drawmeridians(meridians,labels=[False,False,False,True],dashes=[1,2])
+    m.imshow(img,cmap=cmap,alpha=alpha,zorder=1)
+    cbar = m.colorbar(fraction=0.02)
+    cbar.set_label(label='Degree Count', size=18)
+    for i in range(len(lat1)):
+        pos_lons = [lon1[i],lon2[i]]
+        pos_lats = [lat1[i],lat2[i]]
+        lonss, latss = m(pos_lons, pos_lats)# convert lat and lon to map projection coordinates
+        m.plot(lonss, latss, 'r-', linewidth=1,alpha=0.01) 
+    title = 'Degree Map of {}'.format(predictor2title[predictor])
+    plt.title(title,fontsize=20)
+    savename = title.lower().replace(' ','_')+'_lat{}-{}_c{}_c2{}_d{}'.format(top,bottom,c_th,c_th2,d_th)
+    plt.savefig('../data/Climate/{}/Autocorrelation/Figs/{}.png'.format(predictor,savename),dpi=1200,bbox_inches='tight')
+    plt.savefig('../data/Climate/{}/Autocorrelation/Figs/{}.pdf'.format(predictor,savename),dpi=1200,bbox_inches='tight')
+    plt.savefig('../data/Climate/{}/Autocorrelation/Figs/{}.svg'.format(predictor,savename),dpi=1200,bbox_inches='tight')
+    #plt.show()
+    plt.close()
+
+    img = corr_map_weighted
+    img = np.flipud(img)
+    fig = plt.figure(figsize=(15,4)) 
+    m = Basemap(llcrnrlon=lonlat[0],llcrnrlat=lonlat[1],urcrnrlon=lonlat[2],urcrnrlat=lonlat[3],
+                projection=projection,resolution=resolution,area_thresh=area_thresh)
+    m.drawcoastlines(linewidth=1.0,color='k')
+    m.drawcountries(linewidth=1.0,color='k')
+    m.drawstates(linewidth=0.2,color='k')
+    #m.fillcontinents(color='w',alpha=0.1)
+    m.drawmapboundary(fill_color=watercolor)
+    m.fillcontinents(color = 'white',alpha=1.0,lake_color=watercolor)
+    m.drawparallels(parallels,labels=[True,False,False,False],dashes=[1,2])
+    m.drawmeridians(meridians,labels=[False,False,False,True],dashes=[1,2])
+    m.imshow(img,cmap=cmap,alpha=alpha,zorder=1)
+    m.colorbar(fraction=0.02)
+    for i in range(len(lat1)):
+        pos_lons = [lon1[i],lon2[i]]
+        pos_lats = [lat1[i],lat2[i]]
+        lonss, latss = m(pos_lons, pos_lats)# convert lat and lon to map projection coordinates
+        m.plot(lonss, latss, 'r-', linewidth=1,alpha=0.01) 
+    title = 'Weighted Degree Map of {}'.format(predictor2title[predictor])
+    plt.title(title)
+    savename = title.lower().replace(' ','_')+'_lat{}-{}_c{}_c2{}_d{}'.format(top,bottom,c_th,c_th2,d_th)
+    plt.savefig('../data/Climate/{}/Autocorrelation/Figs/{}.png'.format(predictor,savename),dpi=1200,bbox_inches='tight')
+    #plt.show()
+    #plt.close()
+
+    #%%
+    # corr_map = np.zeros((bottom-top,width))
+    # corr_map_weighted = np.zeros((bottom-top,width))
+    # for i in range(len(latlons_inds)):
+    #     lat1,lon1,lat2,lon2 = latlons_inds[i,:]
+    #     corr_map[lat1,lon1] += 1
+    #     corr_map[lat2,lon2] += 1
+    #     corr_map_weighted[lat1,lon1] += abs(corr[i])
+    #     corr_map_weighted[lat2,lon2] += abs(corr[i])
+
+    # corr_map[corr_map==0] = np.nan 
+    # corr_map_weighted[corr_map_weighted==0] = np.nan
+
+    # fig = plt.figure(figsize=(12,5))
+    # plt.imshow(corr_map)
+    # plt.colorbar(fraction=0.01)
+    # plt.xticks([])
+    # plt.yticks([])
+    # plt.xlabel('Longitude')
+    # plt.ylabel('Latitude')
+    # title = 'Degree Map of {}'.format(predictor)
+    # plt.title(title)
+    # savename = title.lower().replace(' ','_')+'_lat{}-{}_c{}'.format(top,bottom,c_th)
+    # plt.savefig('../data/Climate/{}/Autocorrelation/Figs/{}.png'.format(predictor,savename),dpi=1200,bbox_inches='tight')
+    # plt.close()
+
+    # fig = plt.figure(figsize=(12,5))
+    # plt.imshow(corr_map_weighted)
+    # plt.colorbar(fraction=0.01)
+    # plt.xticks([])
+    # plt.yticks([])
+    # plt.xlabel('Longitude')
+    # plt.ylabel('Latitude')
+    # title = 'Weighted Degree Map of {}'.format(predictor)
+    # plt.title(title)
+    # savename = title.lower().replace(' ','_')+'_lat{}-{}_c{}'.format(top,bottom,c_th)
+    # plt.savefig('../data/Climate/{}/Autocorrelation/Figs/{}.png'.format(predictor,savename),dpi=1200,bbox_inches='tight')
+    # plt.close()
+
+
+    #%%
+    # total_inds = np.array([i for i in range(len(dis_corr_p)) if type(dis_corr_p[i,0])==float])
+    # dis_total,corr_total,p_total = dis_corr_p[total_inds,0],dis_corr_p[total_inds,1],dis_corr_p[total_inds,2]
+    # dis_total_hist,total_bin_edges = np.histogram(dis_total,bins=bins,range=bin_range)
+    # print('dis_total.shape={},corr_total.shape={},p_total.shape={}'.format(dis_total.shape,corr_total.shape,p_total.shape))
+    # print('dis_total.min={},dis_total.max={}'.format(np.min(dis_total),np.max(dis_total)))
+    # print('dis_total_hist[0:5]={},total_bin_edges[0:5]={}'.format(dis_total_hist[0:5],total_bin_edges[0:5]))
+    # print('dis_total_hist[-5:]={},total_bin_edges[-5:]={}'.format(dis_total_hist[-5:],total_bin_edges[-5:]))
+
+    #inds = np.array([i for i in range(len(dis_corr_p)) if type(dis_corr_p[i,0])==float and abs(dis_corr_p[i,1])>c_th])
+    dis,corr,p = dis_corr_p[inds,0],dis_corr_p[inds,1],dis_corr_p[inds,2]
+    dis_hist,bin_edges = np.histogram(dis,bins=bins,range=bin_range)
+    print('dis.shape={},corr.shape={},p.shape={}'.format(dis.shape,corr.shape,p.shape))
+    print('dis.min={},dis.max={}'.format(np.min(dis),np.max(dis)))
+    print('dis_hist[0:5]={},bin_edges[0:5]={}'.format(dis_hist[0:5],bin_edges[0:5]))
+    print('dis_hist[-5:]={},bin_edges[-5:]={}'.format(dis_hist[-5:],bin_edges[-5:]))
+
+    # dis_hist_normalized = np.divide(dis_hist,dis_total_hist+1e-15)
+    # xticks = np.array(bin_edges)
+    # xticks = np.array([(xticks[i]+xticks[i+1])//2 for i in range(len(xticks)-1)])
+    # fig = plt.figure(figsize=(12,5))
+    # xx = range(len(dis_hist_normalized))
+    # plt.bar(x=xx,height=dis_hist_normalized)
+    # plt.xticks(ticks=xx[::5],labels=xticks[::5])
+    # plt.xlabel('Distance (km)')
+    # plt.ylabel('Num of Edges / Total Num of Dis. Counts')
+    # title = 'Proportional Histogram {}'.format(predictor)
+    # plt.title(title)
+    # savename = title.lower().replace(' ','_')+'_lat{}-{}_c{}'.format(top,bottom,c_th)
+    # plt.savefig(savepath+savename+'.png',dpi=1200,bbox_inches='tight')
+    # #plt.close()
+
+
+    # fig = plt.figure(figsize=(12,5))
+    # plt.hist(dis_total,bins=bins,range=bin_range,density=density)
+    # plt.xlabel('Distance (km)')
+    # plt.ylabel('Total Num of Dis. Counts')
+    # title = 'Distance Histogram {}'.format(predictor)
+    # plt.title(title)
+    # savename = title.lower().replace(' ','_')+'_lat{}-{}_c{}'.format(top,bottom,c_th)
+    # plt.savefig(savepath+savename+'.png',dpi=1200,bbox_inches='tight')
+    # #plt.close()
+
+    ## Figure 4e-g
+    fig = plt.figure(figsize=(12,5))
+    plt.hist(dis,bins=bins,range=bin_range,density=density)
+    plt.xlabel('Distance (km)',fontsize=18)
+    plt.ylabel('Num of Edges',fontsize=18)
+    title = 'Edges Histogram {}'.format(predictor2title[predictor])
+    plt.title(title,fontsize=20)
+    savename = title.lower().replace(' ','_')+'_lat{}-{}_c{}'.format(top,bottom,c_th)
+    plt.savefig(savepath+savename+'.png',dpi=1200,bbox_inches='tight')
+    plt.savefig(savepath+savename+'.pdf',dpi=1200,bbox_inches='tight')
+    plt.savefig(savepath+savename+'.svg',dpi=1200,bbox_inches='tight')
+    #plt.close()
+    print(f"Job completed in {(time.time()-start_time)/60} minutes")
+## Figure 4a, 4e
+#get_predictor_prop_hist2(predictor='GCM',c_th=0.5,c_th2=0.9)
+## Figure 4b, 4f
+#get_predictor_prop_hist2(predictor='Reanalysis',c_th=0.5,c_th2=0.5)
+## Figure 4c, 4g
+#get_predictor_prop_hist2(predictor='GCM',c_th=0.9,c_th2=0.9)
+## Figure 4d, 4f
+#get_predictor_prop_hist2(predictor='Reanalysis',c_th=0.9,c_th2=0.9)
+
+
+
+
 #%% get proportional histogram of edges
 # def get_predictor_prop_hist():
 #     import numpy as np
@@ -1677,7 +2293,7 @@ def cal_dmi_enso_teleconnections(predictor,threshold):
 #     predictor = 'GCM' # 'Reanalysis' # 
 #     # c_th = 0.5
 #     # c_th2 = 0.9
-#     d_th = 15000 # 19000 # 
+#     d_th = 19000 # 15000 # 
 #     width = 300
 #     bins,bin_range,density = 50,[80,19950],False
 #     if predictor=='Reanalysis':
@@ -1695,8 +2311,8 @@ def cal_dmi_enso_teleconnections(predictor,threshold):
 #         lats = lats[top:bottom]
 #         lons = lons[left:right]
 #     elif predictor=='GCM':
-#         c_th = 0.9
-#         c_th2 = 0.93
+#         c_th = 0.5 # 0.9
+#         c_th2 = 0.9 # 0.93
 #         top = 50
 #         bottom = 130
 #         left,right = 50,350

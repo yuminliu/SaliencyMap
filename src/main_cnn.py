@@ -1,233 +1,214 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jan 12 16:27:21 2021
+Created on Mon Jan 18 12:57:29 2021
 
-@author: liu.yum
+@author: wang.zife
 """
-
 #%%
-import time
-import json
-import torch
+import os
+#import json
+#import torch
 import numpy as np
-from torch.utils.data.dataloader import DataLoader
-from torchsummary import summary
-import datasets
-import models
-#import convlstm_model_2 as models
-import utils
-from inference_cnn import myinference
-import saliencymap_cnn
-     
-#%%
-#def train_cnn(ngcm=0):
-start_time = time.time()
-is_debug = True # False # 
-noise_std = 0.0 # 0.05 # std for additive Gaussian noise
-#ngcm = 'all' # 10 # 'None' # ## which GCM to select
-#predictor = 'GCM{}'.format(ngcm) # 
-predictor = 'GCM' # 'Reanalysis' # 'sst_masked' # 'gcm' # 
-predictand = 'Amazon' # 'Congo' # 'mississippi' #'gcmnino34' # 'gcmnino3' # 'nino3' # 'nino34_anom' # 'dmi' # 'ppt'
-sst = True # mask out land if true, only use sea surface temperature
-lr = 10*5e-6 # 5e-6 # 
-seed = 123 # np.random.randint(low=0,high=2**63-1) # 
-#### model parameters
-input_channels = 32 # 1 # 3 # 4 # 12 # 24
-output_channels = 1
-hidden_channels = [32,32,64] # [8,16,32,64,128,256] #[8,8,16,16,32,32,64,46,128,128,256,256]
-fc_channels = [128,64]
-drop_rate = 0 # 0.5
-activation = 'ReLU' # 'LeakyReLU' # 'RReLU' # 
-hyparas = {}
-hyparas['input_channels'] = input_channels # 6 # 8 # 8*lag # 7 #
-hyparas['output_channels'] = output_channels # 1
-hyparas['hidden_channels'] = hidden_channels # len(hidden_channels)
-hyparas['fc_channels'] = fc_channels
-hyparas['drop_rate'] = drop_rate
-hyparas['activation'] = activation
-#### other parameters
-ngcm = 'all' # 0 # which GCM to select
-tstep = 0 # 12 # time lag in predictor
-window = 3 # moving window
-num_epochs = 200 # 100 # 500 # 500#300#
-batch_size = 64 #128
-# lr = 5e-6 # 10*5e-6
-lr_patience = 5
-weight_decay = 1e-4
-num_workers = 8
-model_name = 'myCNN' # 'ConvLSTM'
-if 'GCM' in predictor: # predictor=='GCM':
-    datapath = '/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/32gcms_tas_monthly_1by1_195001-200512_World.npy' # 
-elif 'Reanalysis' in predictor: # predictor=='Reanalysis':
-    datapath = '../data/Climate/Reanalysis/sst_cobe_hadley_noaa_uod_195001-200512_1by1_world.npy'
-#data_name = 'UoD_NOAA_ExtendedReconstructed_RiverFlow' # 'CPC' #
-#gcm_names = np.load('/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/gcm_names.npy')
-riverpath = '../data/Climate/RiverFlow/processed/riverflow.csv'
-#predictand = 'nino34' # 'nino34_anom' # 'dmi' # 'amazon' # 'nino3' #'ppt'
-verbose = True # False
-#datapath = '../data/'
-save_root_path = '../results/'
-#save_root_path += model_name+'/lag_{}/'.format(tstep)
-save_root_path += model_name+'/lag_{}/{}/'.format(tstep,predictand)
-#save_root_path += model_name+'/lag_{}/{}/SingleGCM/EachGCM/'.format(tstep,predictand) 
-
-# seed = 123 # np.random.randint(low=0,high=2**63-1) # 
-torch.manual_seed(seed)
-torch.backends.cudnn.benchmark = True # true if input size not vary else false
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#device = 'cpu'
-print('using device {}'.format(device))
-nGPU = torch.cuda.device_count() # number of GPU used, 0,1,..
-if is_debug: num_epochs = 2
-paras = {}
-paras['window'] = window
-paras['tstep'] = tstep
-paras['is_debug'] = is_debug
-paras['num_epochs'] = num_epochs
-paras['batch_size'] = batch_size
-paras['lr'] = lr
-paras['lr_patience'] = lr_patience
-paras['weight_decay'] = weight_decay
-paras['num_workers'] = num_workers
-paras['model_name'] = model_name
-#paras['data_name'] = data_name
-paras['verbose'] = verbose
-paras['datapath'] = datapath
-paras['riverpath'] = riverpath
-paras['save_root_path'] = save_root_path
-paras['device'] = device
-paras['nGPU'] = nGPU
-paras['predictor'] = predictor
-paras['predictand'] = predictand
-paras['sst'] = sst
-paras['noise_std'] = noise_std
-paras['ngcm'] = ngcm
-#paras['gcm_name'] = gcm_names[ngcm]
-paras['seed'] = seed
-
+#from torch.utils.data.dataloader import DataLoader
+#import models
+#import datasets
+import plots
 
 #%%
-train_dataset = datasets.myDataset_CNN(predictor=predictor,predictand=predictand,imgpath=datapath,sst=sst,fold='train',window=window,noise_std=noise_std,ngcm=ngcm)
-valid_dataset = datasets.myDataset_CNN(predictor=predictor,predictand=predictand,imgpath=datapath,sst=sst,fold='valid',window=window,noise_std=noise_std,ngcm=ngcm)
-test_dataset = datasets.myDataset_CNN(predictor=predictor,predictand=predictand,imgpath=datapath,sst=sst,fold='test',window=window,noise_std=noise_std,ngcm=ngcm)
-print('len(train_dataset)={}'.format(len(train_dataset)))
-print('len(valid_dataset)={}'.format(len(valid_dataset)))
-train_loader = DataLoader(dataset=train_dataset,batch_size=batch_size,shuffle=True,num_workers=num_workers)
-valid_loader = DataLoader(dataset=valid_dataset,batch_size=batch_size,shuffle=True,num_workers=num_workers)
-test_loader = DataLoader(dataset=test_dataset,batch_size=1,shuffle=False,num_workers=num_workers)
-input_size = next(iter(test_loader))[0][0].shape # [batch,channel,height,width]
-print('input_size={}'.format(input_size))
-
-#%%
-model = models.CNN(**hyparas)
-print('model=\n\n{}'.format(model))
-if nGPU>1:
-    print('Using {} GPUs'.format(nGPU))
-    model = torch.nn.DataParallel(model)
-model = model.to(device)
-summary(model,input_size)
-optimizer = torch.optim.Adam(model.parameters(),lr=lr,weight_decay=weight_decay)
-criterion = torch.nn.MSELoss() # utils.extreme_enhence_MSELoss #
-lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,mode='min',patience=lr_patience)
-
-#%% create save path
-savepath = utils.create_savepath(rootpath=save_root_path,is_debug=is_debug)   
-# savepath = save_root_path+'{}/'.format(ngcm)
-# import os
-# if not os.path.exists(savepath): os.makedirs(savepath)
-paras['savepath'] = savepath
-train_losses, valid_losses,best_epoch = [], [], 0
-for epoch in range(1,num_epochs+1):
-    train_loss = utils.train_one_epoch(model,optimizer,criterion,train_loader,epoch,device,num_epochs)
-    train_losses.append(train_loss)
-    valid_loss = utils.validate(model,criterion,valid_loader,device)
-    valid_losses.append(valid_loss)
-    lr_scheduler.step(valid_loss)
+def plot_saliency_maps(method='Years',predictand='',predictor='',save_root_path=None,cbar_label=''):
+    fillnan = None # 0.0
+    threshold = 0.05
+    # if not method:
+    #     method = 'Years' # 'Seasons' # 'NaturalMonths' # 'Months' # 
+    # if not predictand:
+    #     predictand = 'nino34' # 'congo' # 'amazon' # 'nino3' # 
+    # if not predictor:
+    #     #predictor = 'saliency_gcm_{}_masked'.format(ngcm) #'saliency_gcms_masked_land' # 'saliency_gcms_masked_ocean' # 'saliency_sst_masked_ocean' # 'saliency_sst_masked_land' # 'saliency_sst_masked' # 'saliency_gcms_masked' # 'saliency_sst_hadley_masked_land' # 'saliency_sst_cobe_land' # 'saliency_sst_hadley_masked' # 'saliency_aux' # 
+    #     predictor = 'gcm_masked'
+    # if not save_root_path:
+    #     model_saved_date = '' # '2021-03-23_14.25.56.880963_debug'
+    #     save_root_path = '../results/myCNN/lag_0/{}/{}/Saliency/'.format(predictand,model_saved_date)
     
-    ## save checkpoint model
-    if epoch and epoch%100==0:
-        utils.save_checkpoint(savepath=savepath,epoch=epoch,model=model,optimizer=optimizer,
-                                train_losses=train_losses,valid_losses=valid_losses,
-                                lr=lr,lr_patience=lr_patience,model_name=model_name,nGPU=nGPU)
-    ## save best model
-    if epoch==1 or valid_losses[-1]<valid_losses[-2]:
-        utils.save_checkpoint(savepath=savepath,epoch='best',model=model,optimizer=optimizer,
-                                train_losses=train_losses,valid_losses=valid_losses,
-                                lr=lr,lr_patience=lr_patience,model_name=model_name,nGPU=nGPU)
-        best_epoch = epoch
+    ## gcm region 1
+    lonlat = [50.5,-41.5,349.5,37.5] # [50.5,-42.5,349.5,37.5] # [-124.5,24.5,-66.5,49.5] # map area, [left,bottom,right,top]
+    
+    #lonlat = [50.5,-20.5,349.5,20.5] # region 4
+    
+    parallels = np.arange(-40.0,40.0,10.0)
+    meridians = np.arange(60.0,350.0,30.0) # label lons, 60E to -9.5W, or 60E to 350E
+    ## sst region 1
+#    lonlat = [50.5,-41.5,349.5,37.5] # [50.5,-42.5,349.5,37.5] # [-124.5,24.5,-66.5,49.5] # map area, [left,bottom,right,top]
+#    parallels = np.arange(-40.0,40.0,10.0)
+#    meridians = np.arange(60.0,350.0,30.0) # label lons, 60E to -9.5W, or 60E to 350E
+    ## region 1 mask
+    masks = np.load('../data/Climate/Reanalysis/masks_cobe_hadley_noaa_uod_1by_world.npy')
+    mask = masks[0,52:132,50:350] # cobe region 1
+    #mask = masks[0,52:132,50:350] # cobe region 1
+    #mask = masks[0,69:111,50:350] # cobe region 4
+    ## sst region 2
+    # lonlat = [50.5,-20.5,259.5,20.5] # # map area, [left,bottom,right,top]
+    # parallels = np.arange(-20.0,21.0,10.0)
+    # meridians = np.arange(60.0,300.0,30.0) # label lons, 60E to -9.5W, or 60E to 350E
+    ## sst region 3
+#    lonlat = [150.5,-39.5,259.5,29.5] # # map area, [left,bottom,right,top]
+#    parallels = np.arange(-30.0,30.0,10.0)
+#    meridians = np.arange(150.0,300.0,30.0) # label lons, 60E to -9.5W, or 60E to 350E 
+    
+    watercolor = 'white' # '#46bcec'
+    cmap = 'YlOrRd' # 'bwr' # 'rainbow' # 'Accent' #'YlGn' #'hsv' #'seismic' # 
+    alpha = 1.0 # 0.7
+    projection = 'merc' # 'cyl' # 
+    resolution = 'i' # 'h'
+    area_thresh = 10000
+    clim = None
+    pos_lons, pos_lats = [], [] # None, None # to plot specific locations
+    verbose = True # False # 
+    saliency_maps = np.load(save_root_path+'myCNN_{}_{}_saliency_maps.npy'.format(predictor,predictand)) # [Nmonth,Ngcm,Nlat,Nlon] 
+    
+    
+    # saliency_maps = np.load('../results/myCNN/lag_0/Amazon/2021-06-14_21.59.38.060129_GCM_masked_Amazon_region1/Saliency/myCNN_GCM_Amazon_saliency_maps.npy')
+    # #cmap = 'bwr'
+    # verbose = True
+    # print('saliency_maps.min,max=[{},{}]'.format(np.min(saliency_maps),np.max(saliency_maps)))
+
+
+    print('original saliency_maps.shape={}'.format(saliency_maps.shape))
+#    for gcm in range(len(gcm_names)):
+#        print('processing {}: {}-th GCM'.format(method,gcm+1))
+#        gcm_name = str(gcm+1)+'_'+gcm_names[gcm].split('_')[4]
+#        savepath = savepath_prefix+gcm_name+'/'
+#        saliencymaps = plots.get_saliency(abs(saliency_maps[:,gcm,:,:]),fillnan=fillnan,threshold=threshold)
         
-paras['checkpoint_name'] = '{}_epoch_{}.pth'.format(model_name,'best')
+    #%% 
+    #savepath = None if not save_root_path else save_root_path+'SaliencyMaps/{}/'.format(method) # None #
+    # savepath = None if not save_root_path else save_root_path+'SaliencyMaps2/{}/'.format(method) # None # 
+    savepath = None if not save_root_path else save_root_path+'SaliencyMaps3/{}/'.format(method) # None # 
+    #savepath = save_root_path+'SaliencyMaps_std/{}/'.format(method) # None #
+    saliencymaps = plots.get_saliency(saliency_maps,fillnan=fillnan,threshold=threshold) # [Nmonth,Nlat,Nlon]
+    print('cyclical saliency_maps.shape={}'.format(saliencymaps.shape))
+    if savepath and not os.path.exists(savepath):
+        os.makedirs(savepath)
+    months = plots.get_months(method)  
+    for i,month in enumerate(months):
+        #if i>0: break
+        title,savename = plots.get_title_savename(method,i,predictor,predictand)
+        img = np.mean(saliencymaps[month,:,:],axis=0)
+        #img[img==0] = np.nan
+        
+        #img[mask!=0] = np.nan # mask out ocean
+        img[mask==0] = np.nan # mask out land
+        
 
-#%% plot losses
-if verbose:
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    xx = range(1,len(train_losses)+1)
-    fig = plt.figure()
-    plt.plot(xx,train_losses,'b--',label='Train_losses')
-    plt.plot(xx,valid_losses,'r-',label='Valid_losses')
-    plt.legend()
-    plt.title('Losses')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss(avgerage MSE)')
-    savename = 'losses'
-    if savepath:
-        plt.savefig(savepath+savename+'.png',dpi=1200,bbox_inches='tight')
-    #plt.show()
-    #plt.close()
-
-# intermediate_outputs = model.intermediate_outputs
-# np.save(savepath+'intermediate_outputs.npy',intermediate_outputs)
-# for layer,output in intermediate_outputs.items():
-#     print('layer {} output.shape={}'.format(layer,output.shape))
-
-#%% inference
-mae,mse,rmse = myinference(hyparas,paras,test_loader,folder='test')
-run_time = (time.time()-start_time)/60 # minutes
-paras['device'] = str(device)
-results = {}
-results['mae'] = mae
-results['mse'] = mse
-results['rmse'] = rmse
-results['best_epoch'] = best_epoch
-results['run_time'] = str(run_time)+' minutes'
-configs = {**hyparas,**paras,**results}
-with open(savepath+'configs.txt', 'w') as file:
-        file.write(json.dumps(configs,indent=0)) # use `json.loads` to do the reverse
-
-data_mean,data_std = train_dataset.data_mean,train_dataset.data_std#.cpu().detach().numpy()
-y_mean,y_std = train_dataset.y_mean,train_dataset.y_std#.cpu().detach().numpy()
-if savepath:
-    np.savez(savepath+'data_mean_data_std_y_mean_y_std.npz',data_mean=data_mean,data_std=data_std,y_mean=y_mean,y_std=y_std)
-
-saliencymap_cnn.cal_saliency_maps(hyparas=hyparas,paras=paras,test_loader=test_loader,folder='test')    
-
-
-# all_dataset = datasets.myDataset_CNN(fold='all',window=window,noise_std=noise_std,ngcm=ngcm)
-# train_loader = DataLoader(dataset=train_dataset,batch_size=1,shuffle=False,num_workers=num_workers)
-# valid_loader = DataLoader(dataset=valid_dataset,batch_size=1,shuffle=False,num_workers=num_workers)
-# test_loader = DataLoader(dataset=test_dataset,batch_size=1,shuffle=False,num_workers=num_workers)
-# all_loader = DataLoader(dataset=all_dataset,batch_size=1,shuffle=False,num_workers=num_workers)    
-# #paras['checkpoint_name'] = '{}_epoch_{}.pth'.format(model_name,'best')
-# #paras['savepath'] = '../results/myCNN/lag_0/nino34/2021-03-23_17.56.37.146542_gcm_masked_nino34/'
-# _,_,_ = myinference(hyparas,paras,train_loader,folder='train')
-# _,_,_ = myinference(hyparas,paras,valid_loader,folder='valid')
-# _,_,_ = myinference(hyparas,paras,test_loader,folder='test')
-# _,_,_ = myinference(hyparas,paras,all_loader,folder='all')
-
-torch.cuda.empty_cache()
-#print('{}: Job done! total running time: {} minutes!\n'.format(predictand,run_time))
-print('{}: Job done! total running time: {} minutes!\n'.format(ngcm,run_time))
+        #title = ''
 
 
 
-
+        plots.plot_map(img,title=title,savepath=savepath,savename=savename,cmap=cmap,alpha=alpha,
+                        lonlat=lonlat,projection=projection,resolution=resolution,area_thresh=area_thresh,
+                        parallels=parallels,meridians=meridians,pos_lons=pos_lons, pos_lats=pos_lats,clim=clim,
+                        watercolor=watercolor,verbose=verbose,cbar_label=cbar_label)
+    
 #%%
+def cal_saliency_maps(hyparas=None,paras=None,test_loader=None,folder='test'):
+    #hyparas = paras = None
+    #### model parameters
+    # if not hyparas: 
+    #     hyparas = {}
+    #     hyparas['input_channels'] = input_channels = 1 # 32 # 3 # 4 # 12 # 24
+    #     hyparas['output_channels'] = output_channels = 1
+    #     hyparas['hidden_channels'] = hidden_channels = [32,32,64] # [8,16,32,64,128,256] #[8,8,16,16,32,32,64,46,128,128,256,256]
+    #     hyparas['fc_channels'] = fc_channels = [128,64]
+    #     hyparas['drop_rate'] = drop_rate = 0 # 0.5
+    #     hyparas['activation'] = activation = 'ReLU' # 'LeakyReLU' # 'RReLU' #     
+    # #### other parameters
+    # if not paras:
+    #     ngcm = 0 # 'all' # 
+    #     window = 3 # moving window
+    #     predictand = 'gcm1nino3' # 'nino34' # 'amazon' # 'nino3' # 'ppt'
+    #     predictor = 'gcm_masked'
+    #     model_name = 'myCNN'
+    #     model_saved_date = '2021-01-25_23.00.54.863878'
+    #     #model_saved_path = '../results/myCNN/lag_0/{}/{}/'.format(predictand,model_saved_date)
+    #     model_saved_path = '../results/myCNN/lag_0/Amazon/2021-01-25_23.00.54.863878_gcm1_gcm1nino3/'
+    #     save_root_path = model_saved_path+'{}_Saliency/'.format(model_saved_date)
+    #     noise_std = 0.0
+    if paras:
+        #ngcm = paras['ngcm']
+        model_name = paras['model_name']
+        model_saved_path = paras['savepath']
+        #window = paras['window']
+        predictand = paras['predictand']
+        predictor = paras['predictor']
+        #noise_std = paras['noise_std']
+        seed = paras['seed'] # 123
 
-    #return 
+    save_root_path = model_saved_path+'Saliency/'
+    #checkpoint_pathname = model_saved_path+'myCNN_epoch_best.pth'
+    checkpoint_pathname = model_saved_path+'{}_epoch_best.pth'.format(model_name)
+    #seed = paras['seed'] # 123
+    torch.manual_seed(seed)
+    torch.backends.cudnn.benchmark = True # true if input size not vary else false
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print('using device {}'.format(device))
+    #nGPU = torch.cuda.device_count() # number of GPU used, 0,1,..
 
-# for i in range(13,16): # range(29,32): # [0,1]: # 
-#    main_cnn(ngcm=i)
+    # #%%
+    #test_dataset = datasets.myDataset_CNN(fold='test',window=window,noise_std=noise_std,ngcm=ngcm)
+    #test_loader = DataLoader(dataset=test_dataset,batch_size=1,shuffle=False)
+    #%%
+    model = models.CNN(**hyparas)
+    checkpoint = torch.load(checkpoint_pathname, map_location=lambda storage, loc: storage)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model = model.to(device)
+    model.eval()
 
+    if save_root_path and not os.path.exists(save_root_path):
+        os.makedirs(save_root_path)
+    saliency_maps = []
+    for inputs,y in test_loader:
+        #inputs # [batch,channel,height,width]
+        inputs = inputs.to(device)
+        inputs.requires_grad_()
+        y_pred = model(inputs) # [1,1]
+        y_pred = y_pred.squeeze() # [1,1] --> []
+        y_pred.backward()
+        gradient_map = inputs.grad.data.abs()
+        saliency_maps.append(gradient_map)
+
+    saliency_maps = torch.cat(saliency_maps,dim=0)
+    saliency_maps = saliency_maps.cpu().detach().numpy()
+    print('saliency_maps.shape()={}'.format(saliency_maps.shape))
+
+    if save_root_path:
+        savename = '{}_{}_{}_saliency_maps'.format(model_name,predictor,predictand) 
+        np.save(save_root_path+savename+'.npy',saliency_maps)
+    
+    #### plot saliency maps
+    #predictand,predictor = 'amazon','gcm_masked'
+    #save_root_path = '../results/myCNN/lag_0/Amazon/2021-02-17_23.06.48.428983_gcm_masked_amazon_region1/2021-02-17_23.06.48.428983_Saliency/'
+    for method in ['All','Years','Seasons']: # ['Years','Seasons','NaturalMonths','Months']: # ['Years']: # ['Seasons','NaturalMonths','Months']: # ['Seasons']: # ['Seasons','NaturalMonths','Months']: # 
+        plot_saliency_maps(method=method,predictand=predictand,predictor=predictor,save_root_path=save_root_path)
+    
+        
+#for i in range(7,32): # [7]: #
+#    cal_saliency_maps(hyparas=None,paras=None)
+   
+#cal_saliency_maps(hyparas=None,paras=None)     
+
+#%% ### plot saliency maps
+# predictand = 'Amazon'
+# predictor = 'GCM'
+# for predictand in ['Amazon','Congo']:
+#     for predictor in ['GCM','Reanalysis']:
+#         if predictor=='GCM' and predictand== 'Amazon':
+#             save_root_path = '../results/myCNN/lag_0/Amazon/2021-06-14_21.59.38.060129_GCM_masked_Amazon_region1/Saliency/'
+#         elif predictor=='Reanalysis' and predictand== 'Amazon':
+#             save_root_path = '../results/myCNN/lag_0/Amazon/2021-06-15_00.23.44.969560_Reanalysis_masked_Amazon_region1/Saliency/'
+#         elif predictor=='GCM' and predictand== 'Congo':
+#             save_root_path = '../results/myCNN/lag_0/Congo/2021-06-15_00.42.20.427649_GCM_masked_Congo_region1/Saliency/'
+#         elif predictor=='Reanalysis' and predictand== 'Congo':
+#             save_root_path = '../results/myCNN/lag_0/Congo/2021-06-14_23.51.47.085179_Reanalysis_masked_Congo_region1/Saliency/'
+
+#         for method in ['All','Years','Seasons']: # ['Years']: # ['Years','Seasons','NaturalMonths','Months']: # 
+#             plot_saliency_maps(method=method,predictand=predictand,predictor=predictor,save_root_path=save_root_path)

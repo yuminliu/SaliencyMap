@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats as stats
 import matplotlib
-# matplotlib.use('Agg')
+matplotlib.use('Agg')
 # matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression,Ridge,Lasso,ElasticNet
@@ -23,24 +23,26 @@ import utils
 
 
 
-predictor = 'Nino34' # 'Reanalysis_Nino34' #'Reanalysis_Mean_Nino34' # 'GCM_Nino34' # 'GCM_Mean_Nino34' #  
-predictand = 'Amazon' # 'Congo' #
+predictor = 'Nino34_anom' # 'Nino34' # 'Reanalysis_Nino34' #'Reanalysis_Mean_Nino34' # 'GCM_Nino34' # 'GCM_Mean_Nino34' #  
+predictand = 'Amazon' # 'Congo' # 
 savepath = '../results/Regression/{}_{}/'.format(predictor,predictand)
 Ntrain,Nvalid,Ntest = 600,36,36
 #%% read ENSO index
-# indices_df, _ = utils.read_enso() # 187001 to 201912
+indices_df, _ = utils.read_enso() # 187001 to 201912
 # nino34 = indices_df[['Nino34']].iloc[960:1632].to_numpy().reshape((-1,1)) # from 195001 to 200512
+nino34 = indices_df[['Nino34_anom']].iloc[960:1632].to_numpy().reshape((-1,1)) # from 195001 to 200512
+
 #%% Reanalysis Nino34: average between area in 5N-5S, 170W-120W
-datapath = '../data/Climate/Reanalysis/sst_cobe_hadley_noaa_uod_195001-200512_1by1_world.npy'
-data = np.load(datapath)[:,0:3,2:-2,:] # 
-print('data.shape={}'.format(data.shape))
-#nino34 = np.mean(data[:,:,82:94,190:240],axis=(1,2,3)).reshape((-1,1)) # from 195001 to 200512
-nino34 = np.mean(data[:,:,82:94,190:240],axis=(2,3)) # from 195001 to 200512
-print('nino34.shape={}'.format(nino34.shape))
-lats = np.load('../data/Climate/Reanalysis/lats.npy')[2:-2]
-lons = np.load('../data/Climate/Reanalysis/lons.npy')
-print('lats[82]={},lats[94]={}'.format(lats[82],lats[94]))
-print('lons[190]={},lons[240]={}'.format(lons[190],lons[240]))
+# datapath = '../data/Climate/Reanalysis/sst_cobe_hadley_noaa_uod_195001-200512_1by1_world.npy'
+# data = np.load(datapath)[:,0:3,2:-2,:] # 
+# print('data.shape={}'.format(data.shape))
+# #nino34 = np.mean(data[:,:,82:94,190:240],axis=(1,2,3)).reshape((-1,1)) # from 195001 to 200512
+# nino34 = np.mean(data[:,:,82:94,190:240],axis=(2,3)) # from 195001 to 200512
+# print('nino34.shape={}'.format(nino34.shape))
+# lats = np.load('../data/Climate/Reanalysis/lats.npy')[2:-2]
+# lons = np.load('../data/Climate/Reanalysis/lons.npy')
+# print('lats[82]={},lats[94]={}'.format(lats[82],lats[94]))
+# print('lons[190]={},lons[240]={}'.format(lons[190],lons[240]))
 
 #%% GCMNino34: average between area in 5N-5S, 170W-120W
 # gcmpath = '/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/32gcms_tas_monthly_1by1_195001-200512_World.npy'
@@ -57,18 +59,44 @@ print('lons[190]={},lons[240]={}'.format(lons[190],lons[240]))
 window = 3
 riverpath = '../data/Climate/RiverFlow/processed/riverflow.csv'
 riverflow_df = pd.read_csv(riverpath,index_col=0,header=0)
+
 ## amazon
-amazon = riverflow_df[['0']].iloc[600-window+1:1272].to_numpy().reshape((-1,)) # from 1950-window to 200512
-## moving average, result in 195001 to200512
-amazon = np.array([np.mean(amazon[i:i+window]) for i in range(len(amazon)-window+1)]).reshape((-1,))
-## congo
-# congo = riverflow_df[['1']].iloc[600-window+1:1272].to_numpy().reshape((-1,)) # from 1950-window to 200512
-# ## moving average, result in 195001 to200512
-# congo = np.array([np.mean(congo[i:i+window]) for i in range(len(congo)-window+1)]).reshape((-1,))
+if predictand=='Amazon':
+    amazon = riverflow_df[['0']].iloc[600-window+1:1272].to_numpy().reshape((-1,)) # from 1950-window to 200512
+    if predictor == 'Nino34_anom': # Nino3.4 anomaly to predict river anomaly and the added back historical mean
+        amazon_season = riverflow_df[['0']].iloc[600:1272].to_numpy().reshape((-1,12))#.iloc[600-window+1:1272]#.to_numpy().reshape((-1,)) # from 1950-window to 200512
+        amazon_season = amazon_season[:50,:]
+        amazon_season = np.mean(amazon_season,axis=0)
+        amazon_season = np.tile(amazon_season,reps=56)
+        amazon_season = np.concatenate((amazon_season[1-window:],amazon_season),axis=0)
+        amazon_deseason = amazon - amazon_season
+        amazon_deseason = np.array([np.mean(amazon_deseason[i:i+window]) for i in range(len(amazon_deseason)-window+1)]).reshape((-1,))
+        amazon_season_avg = np.array([np.mean(amazon_season[i:i+window]) for i in range(len(amazon_season)-window+1)]).reshape((-1,))  
+    ## moving average, result in 195001 to200512
+    amazon = np.array([np.mean(amazon[i:i+window]) for i in range(len(amazon)-window+1)]).reshape((-1,))
+elif predictand=='Congo':
+    ## congo
+    congo = riverflow_df[['1']].iloc[600-window+1:1272].to_numpy().reshape((-1,)) # from 1950-window to 200512
+    if predictor == 'Nino34_anom':
+        congo_season = riverflow_df[['1']].iloc[600:1272].to_numpy().reshape((-1,12))#.iloc[600-window+1:1272]#.to_numpy().reshape((-1,)) # from 1950-window to 200512
+        congo_season = congo_season[:50,:]
+        congo_season = np.mean(congo_season,axis=0)
+        congo_season = np.tile(congo_season,reps=56)
+        congo_season = np.concatenate((congo_season[1-window:],congo_season),axis=0)
+        congo_deseason = congo - congo_season
+        congo_deseason = np.array([np.mean(congo_deseason[i:i+window]) for i in range(len(congo_deseason)-window+1)]).reshape((-1,))
+        congo_season_avg = np.array([np.mean(congo_season[i:i+window]) for i in range(len(congo_season)-window+1)]).reshape((-1,))
+    ## moving average, result in 195001 to200512
+    congo = np.array([np.mean(congo[i:i+window]) for i in range(len(congo)-window+1)]).reshape((-1,))
 
 
 X = nino34 # gcm_nino34 # [N,D]
-y = amazon # congo # [N,]
+#y = congo #amazon #  [N,]
+if predictor == 'Nino34_anom':
+    if predictand=='Amazon':
+        y = amazon_deseason
+    elif predictand=='Congo':
+        y = congo_deseason # 
 
 ## standardize
 data_mean = np.mean(X[:Ntrain],axis=0)
@@ -86,6 +114,16 @@ X_train_valid, y_train_valid = X[0:Ntrain+Nvalid,:],y[0:Ntrain+Nvalid]
 
 if not os.path.exists(savepath):
     os.makedirs(savepath)
+
+if predictand=='Amazon':
+    amazon_season_avg_mean, amazon_season_avg_std = np.mean(amazon_season_avg[:Ntrain]), np.std(amazon_season_avg[:Ntrain])
+    amazon_season_avg_demean = (amazon_season_avg-amazon_season_avg_mean)/amazon_season_avg_std
+    np.savez(savepath+f'season_avg.npz',season_avg=amazon_season_avg,season_avg_demean=amazon_season_avg_demean,Ntrain=Ntrain,Nvalid=Nvalid,Ntest=Ntest)
+elif predictand=='Congo':
+    congo_season_avg_mean, congo_season_avg_std = np.mean(congo_season_avg[:Ntrain]), np.std(congo_season_avg[:Ntrain])
+    congo_season_avg_demean = (congo_season_avg-congo_season_avg_mean)/congo_season_avg_std
+    np.savez(savepath+f'season_avg.npz',season_avg=congo_season_avg,season_avg_demean=congo_season_avg_demean,Ntrain=Ntrain,Nvalid=Nvalid,Ntest=Ntest)
+
 #%% scale to zero mean, standard std
 # from sklearn.preprocessing import StandardScaler as Scaler
 # #X_scaler = Scaler(feature_range=(-1, 1)).fit(X_train)
@@ -278,7 +316,7 @@ hyparas['DNN_hyparas'] = dnn_hyparas
 
 
 #%%
-res_df = pd.DataFrame.from_dict(res,orient='index',dtype=np.float,columns=['rmse','corr','p','r2','rae_avg','rae_std'])
+res_df = pd.DataFrame.from_dict(res,orient='index',dtype=float,columns=['rmse','corr','p','r2','rae_avg','rae_std'])
 savename = '{}_{}_metrics_results'.format(predictor.lower(),predictand.lower())
 if savepath and savename:
     res_df.to_csv(savepath+savename+'.csv')
@@ -330,7 +368,7 @@ if verbose:
     plt.ylabel('Flow (m3/s)')
     title = '{} River Flow'.format(predictand)
     plt.title(title)
-    plt.savefig(savepath+title.replace(' ','_')+'.png',dpi=1200,bbox_tight='inches')
+    plt.savefig(savepath+title.replace(' ','_')+'.png',dpi=1200)
     
     fig = plt.figure(figsize=(12,5))
     years_all = np.arange(len(y_all))
@@ -348,6 +386,6 @@ if verbose:
     plt.ylabel('Flow (m3/s)')
     title = '{} River Flow'.format(predictand)
     plt.title(title)
-    plt.savefig(savepath+title.replace(' ','_')+'_all.png',dpi=1200,bbox_tight='inches')
+    plt.savefig(savepath+title.replace(' ','_')+'_all.png',dpi=1200)
 
 

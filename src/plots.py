@@ -14,23 +14,6 @@ from mpl_toolkits.basemap import Basemap
 ##matplotlib.use('Qt5Agg')
 #import matplotlib.pyplot as plt
 
-## https://stackoverflow.com/questions/43324152/python-matplotlib-colorbar-scientific-notation-base
-import matplotlib.pyplot as plt
-import matplotlib.ticker
-class OOMFormatter(matplotlib.ticker.ScalarFormatter):
-    def __init__(self, order=0, fformat="%1.1f", offset=True, mathText=True):
-        self.oom = order
-        self.fformat = fformat
-        matplotlib.ticker.ScalarFormatter.__init__(self,useOffset=offset,useMathText=mathText)
-    def _set_order_of_magnitude(self):
-        self.orderOfMagnitude = self.oom
-    def _set_format(self, vmin=None, vmax=None):
-        self.format = self.fformat
-        if self._useMathText:
-             self.format = r'$\mathdefault{%s}$' % self.format
-
-
-
 #%%
 #def get_saliency(datapathname,predictor,fillnan=None,threshold=0.05):
 def get_saliency(saliency_maps,fillnan=None,threshold=0.05):
@@ -43,7 +26,7 @@ def get_saliency(saliency_maps,fillnan=None,threshold=0.05):
     #saliency_maps = np.std(abs(saliency_maps),axis=1)
     #print('inside plots: saliency_maps.shape={}'.format(saliency_maps.shape))
     max_per_map = np.amax(abs(saliency_maps),axis=(1,2))
-    #print('before triming: saliency_maps.min,max=[{},{}]'.format(np.min(saliency_maps),np.max(saliency_maps)))
+    print('before triming: saliency_maps.min,max=[{},{}]'.format(np.min(saliency_maps),np.max(saliency_maps)))
     if fillnan!=None:
         for mon in range(len(saliency_maps)):
             saliency_maps[mon,:,:][abs(saliency_maps[mon,:,:])<threshold*max_per_map[mon]] = fillnan
@@ -62,7 +45,7 @@ def get_months(method):
         months = [list(range(36))]
     return months
 
-def get_title_savename(method,i,predictor,predictand):
+def get_title_savename(method,i,predictor,predictand,is_std=False):
     var2title = {'Mississippi':'Mississippi River Flow','Congo':'Congo River Flow','gcmnino34':'GCM_Nino34','dmi':'DMI','nino34_anom':'Nino34_anom','nino34':'Nino34','nino3':'Nino3','Amazon':'Amazon River Flow','ppt':'Precipitation','tmax':'Max Temperature','tmin':'Min Temperature'}
     ind2month = {1:'January',2:'February',3:'March',4:'April',5:'May',6:'June',
                  7:'July',8:'August',9:'September',10:'October',11:'November',12:'December'}
@@ -72,30 +55,35 @@ def get_title_savename(method,i,predictor,predictand):
         YEAR, MONTH = str(2003+i//12), ind2month[i%12+1] 
         savename = 'saliency_map_{}_{}_month_{}'.format(predictor,predictand,i)
         title = 'Saliency Map for {} in {} {}'.format(var2title[predictand],MONTH,YEAR)
-        #title = 'Saliency Map std for {} in {} {}'.format(var2title[predictand],MONTH,YEAR)
+        if is_std:
+            title = 'Saliency Map std for {} in {} {}'.format(var2title[predictand],MONTH,YEAR)
     elif method=='NaturalMonths':
         savename = 'saliency_map_{}_{}_month_{}'.format(predictor,predictand,ind2month[i+1])
         title = 'Saliency Map for {} in {}'.format(var2title[predictand],ind2month[i+1])
-        #title = 'Saliency Map std for {} in {}'.format(var2title[predictand],ind2month[i+1])
+        if is_std:
+            title = 'Saliency Map std for {} in {}'.format(var2title[predictand],ind2month[i+1])
     elif method=='Seasons':
         savename = 'saliency_map_{}_{}_season_{}'.format(predictor,predictand,ind2season[i+1])
         title = 'Saliency Map for {} in {}'.format(var2title[predictand],ind2season[i+1])
-        #title = 'Saliency Map std for {} in {}'.format(var2title[predictand],ind2season[i+1])
+        if is_std:
+            title = 'Saliency Map std for {} in {}'.format(var2title[predictand],ind2season[i+1])
     elif method=='Years':
         savename = 'saliency_map_{}_{}_year_{}'.format(predictor,predictand,ind2year[i+1])
         title = 'Saliency Map for {} in {}'.format(var2title[predictand],ind2year[i+1])
-        #title = 'Saliency Map std for {} in {}'.format(var2title[predictand],ind2year[i+1])
+        if is_std:
+            title = 'Saliency Map std for {} in {}'.format(var2title[predictand],ind2year[i+1])
     elif method=='All':
         savename = 'saliency_map_{}_{}_all'.format(predictor,predictand)
         title = 'Saliency Map for {} over All Months'.format(var2title[predictand])
-        #title = 'Saliency Map std for {} over All Months'.format(var2title[predictand])
+        if is_std:
+            title = 'Saliency Map std for {} over All Months'.format(var2title[predictand])
     return title,savename
 
 #%%
 def plot_map(img,title=None,savepath=None,savename=None,cmap='YlOrRd',alpha=0.8,
              lonlat=[235.5,24.5,293.5,49.5],projection='merc',resolution='i',area_thresh=10000,
              parallels=[30,40],meridians=[-115,-105,-95,-85,-75],pos_lons=[], pos_lats=[],
-             clim=None,watercolor='#46bcec',verbose=True,cbar_label=''):
+             clim=None,watercolor='#46bcec',verbose=True,cbar_label='',vminmax=[]):
     
     import matplotlib
     if verbose:
@@ -104,8 +92,8 @@ def plot_map(img,title=None,savepath=None,savename=None,cmap='YlOrRd',alpha=0.8,
     else:
         matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    fig = plt.figure() 
-    #fig = plt.figure(figsize=(12,5)) 
+    #fig = plt.figure() 
+    fig = plt.figure(figsize=(12,5)) 
     m = Basemap(llcrnrlon=lonlat[0],llcrnrlat=lonlat[1],urcrnrlon=lonlat[2],urcrnrlat=lonlat[3],
                 projection=projection,resolution=resolution,area_thresh=area_thresh)
     m.drawcoastlines(linewidth=1.0,color='k')
@@ -118,12 +106,18 @@ def plot_map(img,title=None,savepath=None,savename=None,cmap='YlOrRd',alpha=0.8,
     m.drawparallels(parallels,labels=[True,False,False,False],dashes=[1,2])
     m.drawmeridians(meridians,labels=[False,False,False,True],dashes=[1,2])
     img = np.flipud(img)
-    m.imshow(img,cmap=cmap,alpha=alpha,zorder=1)
+    if len(vminmax)==0:
+        vmin,vmax = None,None
+    else:
+        vmin,vmax = vminmax
+    m.imshow(img,cmap=cmap,alpha=alpha,zorder=1,vmin=vmin,vmax=vmax)
+    #m.imshow(img,cmap=cmap,alpha=alpha,zorder=1,vmin=-1,vmax=1)
+    #m.imshow(img,cmap=cmap,alpha=alpha,zorder=1,vmin=None,vmax=None)
     #m.colorbar(fraction=0.02)
     #cbar = m.colorbar(fraction=0.02,location='bottom',extend='both',pad=0.4,format='%.0e')
-    #cbar = m.colorbar(fraction=0.015,location='bottom',extend='both',pad=0.3)
-    #cbar.formatter.set_powerlimits((0, 0))
-    cbar = m.colorbar(fraction=0.015,location='bottom',extend='both',pad=0.3,format=OOMFormatter(-3,fformat="%1.1f",offset=True,mathText=False))
+    cbar = m.colorbar(fraction=0.015,location='bottom',extend='both',pad=0.3)
+    cbar.formatter.set_powerlimits((-3, -3))
+    #cbar.formatter.set_powerlimits((3, -3))
     if cbar_label: cbar.set_label(label=cbar_label)
     ## plot scatter points
     #if len(pos_lons)==len(pos_lats)>0:
@@ -144,6 +138,8 @@ def plot_map(img,title=None,savepath=None,savename=None,cmap='YlOrRd',alpha=0.8,
         plt.title(title)
     if savepath and savename:
         plt.savefig(savepath+savename+'.png',dpi=1200,bbox_inches='tight')
+        plt.savefig(savepath+savename+'.pdf',dpi=1200,bbox_inches='tight')
+        plt.savefig(savepath+savename+'.svg',dpi=1200,bbox_inches='tight')
     if verbose:
         plt.show()
     else:
