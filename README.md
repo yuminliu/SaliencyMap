@@ -4,6 +4,8 @@ CMIPS5 datasets need to download from NASA (https://registry.opendata.aws/nasane
 
 To preprocess data, run preprocessdata.py
 
+Preprocessed datasets can be inquired via email/onedrive: liu.yum@northeastern.edu 
+
 To get results using comparison methods, run rivers.py
 
 To get results using the CNN methods, run train_cnn.py
