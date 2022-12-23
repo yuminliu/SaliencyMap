@@ -30,7 +30,8 @@ Ntrain,Nvalid,Ntest = 600,36,36
 #%% read ENSO index
 indices_df, _ = utils.read_enso() # 187001 to 201912
 # nino34 = indices_df[['Nino34']].iloc[960:1632].to_numpy().reshape((-1,1)) # from 195001 to 200512
-nino34 = indices_df[['Nino34_anom']].iloc[960:1632].to_numpy().reshape((-1,1)) # from 195001 to 200512
+#nino34 = indices_df[['Nino34_anom']].iloc[960:1632].to_numpy().reshape((-1,1)) # from 195001 to 200512
+nino34 = indices_df[[predictor]].iloc[960:1632].to_numpy().reshape((-1,1)) # from 195001 to 200512
 
 #%% Reanalysis Nino34: average between area in 5N-5S, 170W-120W
 # datapath = '../data/Climate/Reanalysis/sst_cobe_hadley_noaa_uod_195001-200512_1by1_world.npy'
@@ -45,15 +46,15 @@ nino34 = indices_df[['Nino34_anom']].iloc[960:1632].to_numpy().reshape((-1,1)) #
 # print('lons[190]={},lons[240]={}'.format(lons[190],lons[240]))
 
 #%% GCMNino34: average between area in 5N-5S, 170W-120W
-# gcmpath = '/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/32gcms_tas_monthly_1by1_195001-200512_World.npy'
+# gcmpath = '../data/Climate/GCM/GCMdata/tas/processeddata/32gcms_tas_monthly_1by1_195001-200512_World.npy'
 # #nino34 = np.mean(np.load(gcmpath)[:,:,82:94,190:240],axis=(1,2,3)).reshape((-1,1)) # from 195001 to 200512
 # nino34 = np.mean(np.load(gcmpath)[:,:,82:94,190:240],axis=(2,3))#.reshape((-1,)) # from 195001 to 200512
 # print('gcm_nino34.shape={}'.format(nino34.shape))
-# lons = np.load('/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/lons_gcm.npy')
+# lons = np.load('../data/Climate/GCM/GCMdata/tas/processeddata/lons_gcm.npy')
 # print('lons[190]={},lons[240]={}'.format(lons[190],lons[240]))
-# lats = np.load('/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/lats_gcm.npy')
+# lats = np.load('../data/Climate/GCM/GCMdata/tas/processeddata/lats_gcm.npy')
 # print('lats[82]={},lats[94]={}'.format(lats[82],lats[94]))
-# time = np.load('/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/time_gcm.npy')
+# time = np.load('../data/Climate/GCM/GCMdata/tas/processeddata/time_gcm.npy')
 
 #%% river flow 
 window = 3
@@ -89,9 +90,9 @@ elif predictand=='Congo':
     ## moving average, result in 195001 to200512
     congo = np.array([np.mean(congo[i:i+window]) for i in range(len(congo)-window+1)]).reshape((-1,))
 
-
 X = nino34 # gcm_nino34 # [N,D]
 #y = congo #amazon #  [N,]
+y = amazon if predictand=='Amazon' else congo
 if predictor == 'Nino34_anom':
     if predictand=='Amazon':
         y = amazon_deseason
@@ -114,15 +115,15 @@ X_train_valid, y_train_valid = X[0:Ntrain+Nvalid,:],y[0:Ntrain+Nvalid]
 
 if not os.path.exists(savepath):
     os.makedirs(savepath)
-
-if predictand=='Amazon':
-    amazon_season_avg_mean, amazon_season_avg_std = np.mean(amazon_season_avg[:Ntrain]), np.std(amazon_season_avg[:Ntrain])
-    amazon_season_avg_demean = (amazon_season_avg-amazon_season_avg_mean)/amazon_season_avg_std
-    np.savez(savepath+f'season_avg.npz',season_avg=amazon_season_avg,season_avg_demean=amazon_season_avg_demean,Ntrain=Ntrain,Nvalid=Nvalid,Ntest=Ntest)
-elif predictand=='Congo':
-    congo_season_avg_mean, congo_season_avg_std = np.mean(congo_season_avg[:Ntrain]), np.std(congo_season_avg[:Ntrain])
-    congo_season_avg_demean = (congo_season_avg-congo_season_avg_mean)/congo_season_avg_std
-    np.savez(savepath+f'season_avg.npz',season_avg=congo_season_avg,season_avg_demean=congo_season_avg_demean,Ntrain=Ntrain,Nvalid=Nvalid,Ntest=Ntest)
+if predictor == 'Nino34_anom':
+    if predictand=='Amazon':
+        amazon_season_avg_mean, amazon_season_avg_std = np.mean(amazon_season_avg[:Ntrain]), np.std(amazon_season_avg[:Ntrain])
+        amazon_season_avg_demean = (amazon_season_avg-amazon_season_avg_mean)/amazon_season_avg_std
+        np.savez(savepath+f'season_avg.npz',season_avg=amazon_season_avg,season_avg_demean=amazon_season_avg_demean,Ntrain=Ntrain,Nvalid=Nvalid,Ntest=Ntest)
+    elif predictand=='Congo':
+        congo_season_avg_mean, congo_season_avg_std = np.mean(congo_season_avg[:Ntrain]), np.std(congo_season_avg[:Ntrain])
+        congo_season_avg_demean = (congo_season_avg-congo_season_avg_mean)/congo_season_avg_std
+        np.savez(savepath+f'season_avg.npz',season_avg=congo_season_avg,season_avg_demean=congo_season_avg_demean,Ntrain=Ntrain,Nvalid=Nvalid,Ntest=Ntest)
 
 #%% scale to zero mean, standard std
 # from sklearn.preprocessing import StandardScaler as Scaler
@@ -194,7 +195,7 @@ elif X.shape[1]>1:
     plt.savefig(savepath+title.replace(' ','_')+'_test.png',dpi=1200,bbox_tight='inches')
 
 
-#%%
+#%% define helper functions
 from sklearn.model_selection import GridSearchCV
 def modelsearch(estimator,param_grid,X,y,scoring='neg_mean_squared_error',cv=5):
     grid = GridSearchCV(estimator=estimator, param_grid=param_grid,scoring=scoring, cv=cv)
@@ -234,8 +235,6 @@ ridge, paras = modelsearch(Ridge(),param_grid,X_train_valid,y_train_valid.flatte
 y_pred_train_valid = ridge.predict(X_train_valid)
 y_pred = ridge.predict(X_test)
 rmse,corr,p,r2,rae_avg,rae_std = cal_metrics(y_pred,y_test)
-# np.savez(savepath+'{}_ridgeRegression.npz'.format(rivername),rmse=rmse,rae_avg=rae_avg,rae_std=rae_std,
-#          y_pred=y_pred,y_test=y_test,years=years,corr=corr,p=p,r2=r2,y_pred_train=y_pred_train_valid,y_train=y_train_valid)
 np.save(savepath+'ridge.npy',np.concatenate((y_pred_train_valid,y_pred),axis=0))
 res['ridge'] = [rmse,corr,p,r2,rae_avg,rae_std]
 hyparas = {}
@@ -267,7 +266,7 @@ hyparas['elastic_hyparas'] = paras
 #%% Random Forest
 from sklearn.ensemble import RandomForestRegressor
 param_grid = {'n_estimators':[50,100,300],'max_depth':[None,10,30],'max_features': [0.5,'auto'],
-              'min_samples_leaf': [1,3,5],'min_samples_split': [2,8]}
+            'min_samples_leaf': [1,3,5],'min_samples_split': [2,8]}
 rfr, paras = modelsearch(RandomForestRegressor(),param_grid,X_train_valid,y_train_valid.flatten(),scoring='neg_mean_squared_error',cv=5)
 y_pred_train_valid = rfr.predict(X_train_valid)
 y_pred = rfr.predict(X_test)
@@ -337,7 +336,7 @@ if verbose:
 
     linear_pred_all = np.load(datapath+'linear.npy')
     linear_pred = linear_pred_all[Ntrain+Nvalid:]
- 
+
     ridge_pred_all = np.load(datapath+'ridge.npy')
     ridge_pred = ridge_pred_all[Ntrain+Nvalid:]
 
@@ -387,5 +386,4 @@ if verbose:
     title = '{} River Flow'.format(predictand)
     plt.title(title)
     plt.savefig(savepath+title.replace(' ','_')+'_all.png',dpi=1200)
-
 

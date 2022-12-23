@@ -95,16 +95,16 @@ class myDataset_CNN(Dataset):
     def __len__(self):
         return len(self.y[self.fold])
     
-    def __readdata__(self,imgpath='/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/32gcms_tas_monthly_1by1_195001-200512_World.npy',
+    def __readdata__(self,imgpath='../data/GCM/GCMdata/tas/processeddata/32gcms_tas_monthly_1by1_195001-200512_World.npy',
                      riverpath='../data/Climate/RiverFlow/processed/riverflow.csv',column = ['Nino3'],window=3):
         #%% tas
         if 'GCM' in self.predictor: # self.predictor=='GCM':
-            #imgpath = '/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/32gcms_tas_monthly_1by1_195001-200512_World.npy'
+            #imgpath = '../data/Climate/GCM/GCMdata/tas/processeddata/32gcms_tas_monthly_1by1_195001-200512_World.npy'
             left,right = 50,350
             top,bottom = 50,130 # region 1
             #top,bottom = 67,109 #[20.5,-20.5], region 4
-            #lats = np.load('/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/lats_gcm.npy')
-            #lons = np.load('/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/lons_gcm.npy')
+            #lats = np.load('../data/Climate/GCM/GCMdata/tas/processeddata/lats_gcm.npy')
+            #lons = np.load('../data/Climate/GCM/GCMdata/tas/processeddata/lons_gcm.npy')
             data = np.load(imgpath) # 87.5N to -87.5N by 1, 
             if self.ngcm=='all':
                 data = data[:,:,top:bottom,left:right] # 50.5E to 349.5E, 37.5N to -41.5N, # [672,32,80,300]
@@ -112,7 +112,7 @@ class myDataset_CNN(Dataset):
                 data = data[:,self.ngcm:self.ngcm+1,top:bottom,left:right] # 50.5E to 349.5E, 37.5N to -41.5N, # one GCM [672,1,80,300]
             ## mask out land
             if self.sst:
-                cobe = np.load('/scratch/wang.zife/YuminLiu/DATA/COBE/processed/sst.mon.mean_185001-201912_1by1.npy')
+                cobe = np.load('../data/Climate/COBE/processed/sst.mon.mean_185001-201912_1by1.npy')
                 mask = np.mean(cobe,axis=0)
                 mask = mask[top+2:bottom+2,left:right]
                 mask = np.nan_to_num(mask,nan=1000)
@@ -136,7 +136,7 @@ class myDataset_CNN(Dataset):
                 data = data[:,self.ngcm:self.ngcm+1,top:bottom,left:right] # 50.5E to 349.5E, 37.5N to -41.5N, [672,1,80,300], one reanalysis each
             ## mask out land
             if self.sst:
-                cobe = np.load('/scratch/wang.zife/YuminLiu/DATA/COBE/processed/sst.mon.mean_185001-201912_1by1.npy')
+                cobe = np.load('../data/Climate/COBE/processed/sst.mon.mean_185001-201912_1by1.npy')
                 mask = np.mean(cobe,axis=0)
                 mask = mask[top+2:bottom+2,left:right]
                 mask = np.nan_to_num(mask,nan=1000)
@@ -215,13 +215,13 @@ class myDataset_CNN(Dataset):
         #targets = np.mean(np.load(imgpath)[:,:,82:94,210:270],axis=(1,2,3)).reshape((-1,1))
         
         #%% GCMNino34: average between area in 5N-5S, 170W-120W
-        # gcmpath = '/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/32gcms_tas_monthly_1by1_195001-200512_World.npy'
+        # gcmpath = '../data/Climate/GCM/GCMdata/tas/processeddata/32gcms_tas_monthly_1by1_195001-200512_World.npy'
         # #targets = np.mean(np.load(gcmpath)[:,:,82:94,190:240],axis=(1,2,3)).reshape((-1,1))
         # #### SingleGCMNino34
         # targets = np.mean(np.load(gcmpath)[:,2:3,82:94,190:240],axis=(1,2,3)).reshape((-1,1))
-        # #lons = np.load('/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/lons_gcm.npy')
+        # #lons = np.load('../data/Climate/GCM/GCMdata/tas/processeddata/lons_gcm.npy')
         # #print('lons[190]={},lons[240]={}'.format(lons[190],lons[240]))
-        # #lats = np.load('/scratch/wang.zife/YuminLiu/DATA/GCM/GCMdata/tas/processeddata/lats_gcm.npy')
+        # #lats = np.load('../data/Climate/GCM/GCMdata/tas/processeddata/lats_gcm.npy')
         # #print('lats[82]={},lats[94]={}'.format(lats[82],lats[94]))
         
         #%% India Dipole Mode Index (DMI)
